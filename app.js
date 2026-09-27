@@ -1,127 +1,52 @@
-const API_URL='https://script.google.com/macros/s/AKfycbxvqJpcrAHSgxTDJ7-U_spCaCmJf2oCbOl5qo3ULdH0lWdggkJYqJhkQCLzkib0t_yEvg/exec';
+const API_URL='COLE_AQUI_SUA_URL_DO_APPS_SCRIPT_EXEC';
 
-let sessao={
-  token:localStorage.getItem('vf_token'),
-  usuario:JSON.parse(localStorage.getItem('vf_usuario')||'null')
-};
+let sessao={token:localStorage.getItem('vf_token'),usuario:JSON.parse(localStorage.getItem('vf_usuario')||'null')};
+let moduloAtual=null;
 
 document.addEventListener('DOMContentLoaded',iniciarApp);
-
-// PWA: registra o Service Worker para permitir instalação no celular.
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js')
-      .then(reg => console.log('LeFe Finances PWA ativa:', reg.scope))
-      .catch(err => console.warn('Falha ao registrar PWA:', err));
-  });
-}
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js?v=4').catch(console.warn));}
 
 function iniciarApp(){
-  configurarLogin();
-  configurarLogout();
-  configurarModulos();
+  configurarLogin(); configurarLogout(); configurarModulos();
+  document.getElementById('btn-voltar').addEventListener('click',abrirHome);
+  document.getElementById('btn-logout-modulo').addEventListener('click',sair);
   if(sessao.token&&sessao.usuario) abrirHome(); else abrirLogin();
 }
 
-function configurarLogin(){
-  document.getElementById('form-login').addEventListener('submit',async e=>{
-    e.preventDefault();
-    const usuario=document.getElementById('usuario').value.trim();
-    const senha=document.getElementById('senha').value;
-    const botao=document.getElementById('btn-login');
-    const mensagem=document.getElementById('mensagem-login');
-    mensagem.textContent='';
-    botao.disabled=true;
-    botao.textContent='Entrando...';
-    try{
-      const resposta=await chamarApi({action:'login',usuario,senha});
-      if(!resposta.sucesso) throw new Error(resposta.erro||'Não foi possível entrar.');
-      sessao.token=resposta.token;
-      sessao.usuario=resposta.usuario;
-      localStorage.setItem('vf_token',resposta.token);
-      localStorage.setItem('vf_usuario',JSON.stringify(resposta.usuario));
-      abrirHome();
-    }catch(err){
-      mensagem.textContent=err.message;
-    }finally{
-      botao.disabled=false;
-      botao.textContent='Entrar';
-    }
-  });
-}
+function configurarLogin(){document.getElementById('form-login').addEventListener('submit',async e=>{e.preventDefault();const usuario=$('usuario').value.trim(),senha=$('senha').value,botao=$('btn-login'),mensagem=$('mensagem-login');mensagem.textContent='';botao.disabled=true;botao.textContent='Entrando...';try{const r=await chamarApi({action:'login',usuario,senha});if(!r.sucesso)throw new Error(r.erro||'Não foi possível entrar.');sessao={token:r.token,usuario:r.usuario};localStorage.setItem('vf_token',r.token);localStorage.setItem('vf_usuario',JSON.stringify(r.usuario));abrirHome();}catch(err){mensagem.textContent=err.message}finally{botao.disabled=false;botao.textContent='Entrar'}})}
+function configurarLogout(){$('btn-logout').addEventListener('click',sair)}
+function configurarModulos(){document.querySelectorAll('.modulo').forEach(b=>b.addEventListener('click',()=>abrirModulo(b.dataset.modulo)))}
 
-function abrirHome(){
-  document.getElementById('tela-login').classList.add('escondido');
-  document.getElementById('tela-home').classList.remove('escondido');
+function abrirLogin(){mostrarTela('tela-login');window.scrollTo(0,0)}
+function abrirHome(){mostrarTela('tela-home');window.scrollTo(0,0);const nome=sessao.usuario?.nome||'',login=(sessao.usuario?.usuario||'').toLowerCase();$('nome-usuario').textContent=nome+' 👋';const hero=document.querySelector('.hero-personalizado'),imagem=$('hero-usuario'),frase=$('hero-frase');hero.classList.remove('leticia','fernando');if(login==='leticia'){hero.classList.add('leticia');imagem.src='assets/leticia-home.png';imagem.alt='Letícia';frase.innerHTML='Disciplina hoje,<br>liberdade <strong>amanhã</strong> 🧡';}else if(login==='fernando'){hero.classList.add('fernando');imagem.src='assets/fernando-home.png';imagem.alt='Fernando';frase.innerHTML='Planejamento hoje,<br>conquistas <strong>sempre</strong> 🧡';}else{imagem.src='assets/casal-login.png';frase.innerHTML='Juntos em cada<br><strong>etapa</strong> 🧡';}}
+function mostrarTela(id){['tela-login','tela-home','tela-modulo'].forEach(x=>$(x).classList.toggle('escondido',x!==id))}
+async function sair(){try{if(sessao.token)await chamarApi({action:'logout',token:sessao.token})}catch(e){}localStorage.removeItem('vf_token');localStorage.removeItem('vf_usuario');sessao={token:null,usuario:null};$('senha').value='';abrirLogin()}
 
-  const nome=sessao.usuario?.nome||'';
-  const login=(sessao.usuario?.usuario||'').toLowerCase();
-  document.getElementById('nome-usuario').textContent=nome+' 👋';
+async function abrirModulo(modulo){moduloAtual=modulo;mostrarTela('tela-modulo');window.scrollTo(0,0);const c=$('modulo-conteudo');c.innerHTML='<div class="carregando">Carregando...</div>';try{if(modulo==='financeiro')await renderFinanceiro(c);else if(modulo==='mercado')await renderMercado(c);else if(modulo==='relatorios')await renderRelatorios(c);else if(modulo==='calendario')await renderCalendario(c);else if(modulo==='comprovantes')await renderComprovantes(c);else if(modulo==='configuracoes')await renderConfiguracoes(c);}catch(e){c.innerHTML='<div class="erro">'+esc(e.message)+'</div>';if(String(e.message).toLowerCase().includes('sessão')){setTimeout(sair,900)}}}
 
-  const hero=document.querySelector('.hero-personalizado');
-  const imagem=document.getElementById('hero-usuario');
-  const frase=document.getElementById('hero-frase');
-  hero.classList.remove('leticia','fernando');
+async function renderFinanceiro(c){const ref=referenciaAtual();const [resumo,lista]=await Promise.all([chamarApi({action:'resumoFinanceiro',token:sessao.token,referencia:ref}),chamarApi({action:'listarFinanceiro',token:sessao.token,referencia:ref})]);assertOk(resumo);assertOk(lista);c.innerHTML=cabecalho('🪙','Financeiro','Contas, pagamentos e comprovantes')+`<div class="cards-resumo"><div class="card-resumo"><small>Entradas</small><strong class="verde">${moeda(resumo.dados.entradas)}</strong></div><div class="card-resumo"><small>Saídas</small><strong class="vermelho">${moeda(resumo.dados.saidas)}</strong></div><div class="card-resumo"><small>Saldo do mês</small><strong class="${resumo.dados.saldo>=0?'verde':'vermelho'}">${moeda(resumo.dados.saldo)}</strong></div><div class="card-resumo"><small>Atrasadas</small><strong class="vermelho">${moeda(resumo.dados.atrasado)}</strong></div></div><div class="painel"><div class="painel-titulo"><h3>Contas do mês</h3><span>${lista.dados.length}</span></div><div class="lista-modulo">${lista.dados.length?lista.dados.map(itemFinanceiro).join(''):'<div class="vazio">Nenhum lançamento neste mês.</div>'}</div></div>`}
+function itemFinanceiro(x){const st=String(x.status||'').toLowerCase().replace('_','');return `<div class="item-lista"><div><div class="descricao">${esc(x.descricao||'Sem descrição')}</div><div class="meta">${esc(x.categoria||'')} ${x.vencimento?'• '+dataBR(x.vencimento):''}</div><span class="badge ${st}">${esc(String(x.status||'').replace('_',' '))}</span></div><div class="valor ${x.tipo==='RECEITA'?'verde':'vermelho'}">${x.tipo==='RECEITA'?'+ ':'- '}${moeda(x.valor)}</div></div>`}
 
-  if(login==='leticia'){
-    hero.classList.add('leticia');
-    imagem.src='assets/leticia-home.png';
-    imagem.alt='Letícia';
-    frase.innerHTML='Disciplina hoje,<br>liberdade <strong>amanhã</strong> 🧡';
-  }else if(login==='fernando'){
-    hero.classList.add('fernando');
-    imagem.src='assets/fernando-home.png';
-    imagem.alt='Fernando';
-    frase.innerHTML='Planejamento hoje,<br>conquistas <strong>sempre</strong> 🧡';
-  }else{
-    imagem.src='assets/casal-login.png';
-    imagem.alt='Fernando e Letícia';
-    frase.innerHTML='Juntos em cada<br><strong>etapa</strong> 🧡';
-  }
-}
+async function renderMercado(c){const r=await chamarApi({action:'listarMercado',token:sessao.token,referencia:referenciaAtual()});assertOk(r);const itens=r.dados||[];c.innerHTML=cabecalho('🛒','Mercado','Lista de compras e registros')+`<div class="painel"><div class="painel-titulo"><h3>Minha lista de compras</h3><span>${itens.length} itens</span></div><div class="lista-modulo">${itens.length?itens.map(itemMercado).join(''):'<div class="vazio">Sua lista está vazia. Você pode preencher a aba MERCADO na planilha.</div>'}</div></div>`;c.querySelectorAll('[data-mercado-id]').forEach(btn=>btn.addEventListener('click',async()=>{btn.disabled=true;try{const novo=btn.dataset.ok!=='SIM';const rr=await chamarApi({action:'atualizarItemMercado',token:sessao.token,id:btn.dataset.mercadoId,dados:{comprado:novo?'SIM':'NÃO'}});assertOk(rr);await renderMercado(c)}catch(e){toast(e.message)}finally{btn.disabled=false}}))}
+function itemMercado(x){const ok=String(x.comprado).toUpperCase()==='SIM';return `<div class="item-lista"><div><div class="descricao">${esc(x.produto)}</div><div class="meta">${esc(x.categoria||'')} • ${esc(String(x.quantidade||''))} ${esc(x.unidade||'')}</div></div><button class="check-mercado ${ok?'ok':''}" data-mercado-id="${esc(x.id)}" data-ok="${ok?'SIM':'NÃO'}">${ok?'✓':''}</button></div>`}
 
-function abrirLogin(){
-  document.getElementById('tela-home').classList.add('escondido');
-  document.getElementById('tela-login').classList.remove('escondido');
-}
+async function renderRelatorios(c){const ref=referenciaAtual(),r=await chamarApi({action:'resumoFinanceiro',token:sessao.token,referencia:ref});assertOk(r);const d=r.dados,max=Math.max(d.entradas,d.saidas,1);c.innerHTML=cabecalho('📊','Relatórios','Resumo da vida financeira no mês')+`<div class="cards-resumo"><div class="card-resumo"><small>Entradas</small><strong class="verde">${moeda(d.entradas)}</strong></div><div class="card-resumo"><small>Saídas</small><strong class="vermelho">${moeda(d.saidas)}</strong></div><div class="card-resumo"><small>Saldo</small><strong class="${d.saldo>=0?'verde':'vermelho'}">${moeda(d.saldo)}</strong></div><div class="card-resumo"><small>A pagar</small><strong class="amarelo">${moeda(d.aPagar)}</strong></div></div><div class="painel"><div class="painel-titulo"><h3>Comparativo do mês</h3></div><div class="grafico-barras"><div class="barra" style="height:${Math.max(10,d.entradas/max*100)}%"><span>Entradas</span></div><div class="barra" style="height:${Math.max(10,d.saidas/max*100)}%;background:#a54b17"><span>Saídas</span></div></div></div>`}
 
-function configurarLogout(){
-  document.getElementById('btn-logout').addEventListener('click',sair);
-}
+async function renderCalendario(c){const r=await chamarApi({action:'listarFinanceiro',token:sessao.token,referencia:referenciaAtual()});assertOk(r);const itens=(r.dados||[]).filter(x=>x.tipo==='DESPESA'&&x.vencimento).sort((a,b)=>new Date(a.vencimento)-new Date(b.vencimento));c.innerHTML=cabecalho('📅','Calendário','Vencimentos e contas futuras')+`<div class="painel"><div class="painel-titulo"><h3>Vencimentos do mês</h3><span>${itens.length}</span></div><div class="lista-modulo">${itens.length?itens.map(itemFinanceiro).join(''):'<div class="vazio">Nenhum vencimento cadastrado.</div>'}</div></div>`}
 
-async function sair(){
-  try{
-    if(sessao.token) await chamarApi({action:'logout',token:sessao.token});
-  }catch(err){
-    console.warn(err);
-  }
-  localStorage.removeItem('vf_token');
-  localStorage.removeItem('vf_usuario');
-  sessao={token:null,usuario:null};
-  document.getElementById('senha').value='';
-  abrirLogin();
-}
+async function renderComprovantes(c){const r=await chamarApi({action:'listarComprovantes',token:sessao.token,referencia:referenciaAtual()});assertOk(r);const itens=r.dados||[];c.innerHTML=cabecalho('🧾','Comprovantes','Arquivos salvos no Drive')+`<div class="painel"><div class="painel-titulo"><h3>Comprovantes</h3><span>${itens.length}</span></div><div class="lista-modulo">${itens.length?itens.map(x=>`<div class="item-lista"><div><div class="descricao">${esc(x.descricao)}</div><div class="meta">${esc(x.origem)}${x.data?' • '+dataBR(x.data):''}</div></div><a class="link-comprovante" href="${escAttr(x.url)}" target="_blank" rel="noopener">Abrir</a></div>`).join(''):'<div class="vazio">Nenhum comprovante salvo neste mês.</div>'}</div></div>`}
 
-function configurarModulos(){
-  document.querySelectorAll('.modulo').forEach(b=>b.addEventListener('click',()=>abrirModulo(b.dataset.modulo)));
-}
+async function renderConfiguracoes(c){const r=await chamarApi({action:'listarConfig',token:sessao.token});assertOk(r);const dados=r.dados||[],grupos={};dados.forEach(x=>(grupos[x.tipo]??=[]).push(x));c.innerHTML=cabecalho('⚙️','Configurações','Categorias, pagamentos e preferências')+Object.entries(grupos).map(([tipo,itens])=>`<div class="painel grupo-config"><h3>${tituloTipo(tipo)}</h3>${itens.map(x=>`<div class="config-linha"><strong>${esc(x.nome)}</strong>${x.valor?`<div class="meta">${esc(String(x.valor))}</div>`:''}</div>`).join('')}</div>`).join('')}
 
-function abrirModulo(modulo){
-  const nomes={
-    financeiro:'🪙 Financeiro',
-    mercado:'🛒 Mercado',
-    relatorios:'📊 Relatórios',
-    calendario:'📅 Calendário',
-    comprovantes:'🧾 Comprovantes',
-    configuracoes:'⚙️ Configurações'
-  };
-  alert(nomes[modulo]||modulo);
-}
+function cabecalho(i,t,s){return `<section class="cabecalho-modulo"><div class="icone-grande">${i}</div><div><h2>${esc(t)}</h2><p>${esc(s)}</p></div></section>`}
+function referenciaAtual(){const d=new Date(),m=String(d.getMonth()+1).padStart(2,'0');return `${m}/${d.getFullYear()}`}
+function moeda(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+function dataBR(v){const d=new Date(v);return isNaN(d)?'':d.toLocaleDateString('pt-BR')}
+function tituloTipo(t){return ({CATEGORIA_RECEITA:'Receitas',CATEGORIA_DESPESA:'Despesas',CATEGORIA_MERCADO:'Mercado',FORMA_PAGAMENTO:'Formas de pagamento',SISTEMA:'Sistema'})[t]||t.replaceAll('_',' ')}
+function assertOk(r){if(!r||!r.sucesso)throw new Error(r?.erro||'Erro na API')}
+function $(id){return document.getElementById(id)}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function escAttr(v){return esc(v)}
+function toast(m){const t=$('toast');t.textContent=m;t.classList.remove('escondido');clearTimeout(t._timer);t._timer=setTimeout(()=>t.classList.add('escondido'),2600)}
 
-async function chamarApi(dados){
-  if(API_URL.includes('COLE_AQUI')) throw new Error('Configure a URL da API no arquivo app.js.');
-  const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(dados)});
-  if(!r.ok) throw new Error('Erro de comunicação com o servidor.');
-  const t=await r.text();
-  try{return JSON.parse(t)}catch(err){console.error(t);throw new Error('Resposta inválida da API.');}
-}
+async function chamarApi(dados){if(API_URL.includes('COLE_AQUI'))throw new Error('Coloque sua URL /exec no começo do app.js.');const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(dados)});if(!r.ok)throw new Error('Erro de comunicação com o servidor.');const t=await r.text();try{return JSON.parse(t)}catch(e){throw new Error('Resposta inválida da API.')}}

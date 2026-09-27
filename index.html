@@ -11,59 +11,38 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <section id="tela-login" class="tela tela-login">
     <div class="login-box">
-      <div class="marca-login">
-        <h1>LeFe <span>Finances</span></h1>
-        <p>Fernando & Letícia</p>
-      </div>
-
+      <div class="marca-login"><h1>LeFe <span>Finances</span></h1><p>Fernando & Letícia</p></div>
       <div class="login-ilustracao">
         <img src="assets/casal-login.png" alt="Fernando e Letícia">
         <div class="login-frase">Juntos em cada<br><strong>etapa</strong> 🧡</div>
       </div>
-
       <form id="form-login" class="form-login">
-        <div class="campo-login">
-          <span>👤</span>
-          <input id="usuario" type="text" placeholder="Usuário" autocomplete="username" required>
-        </div>
-        <div class="campo-login">
-          <span>🔒</span>
-          <input id="senha" type="password" placeholder="Senha" autocomplete="current-password" required>
-        </div>
+        <div class="campo-login"><span>👤</span><input id="usuario" type="text" placeholder="Usuário" autocomplete="username" required></div>
+        <div class="campo-login"><span>🔒</span><input id="senha" type="password" placeholder="Senha" autocomplete="current-password" required></div>
         <button id="btn-login" type="submit" class="botao-principal">Entrar</button>
         <p id="mensagem-login" class="mensagem"></p>
       </form>
-
-      <div class="versiculo-login">
-        “Entrega o teu caminho ao Senhor;<br>confia nEle, e Ele tudo fará.”
-        <strong>Salmos 37:5</strong>
-      </div>
+      <div class="versiculo-login">“Entrega o teu caminho ao Senhor;<br>confia nEle, e Ele tudo fará.”<strong>Salmos 37:5</strong></div>
     </div>
   </section>
 
   <section id="tela-home" class="tela escondido">
     <header class="topo">
       <button class="icone-topo" id="btn-menu" aria-label="Menu">☰</button>
-      <div class="titulo-topo">
-        <strong>LeFe <span>Finances</span></strong>
-        <small>Fernando & Letícia</small>
-      </div>
+      <div class="titulo-topo"><strong>LeFe <span>Finances</span></strong><small>Fernando & Letícia</small></div>
       <button class="icone-topo" id="btn-logout" title="Sair" aria-label="Sair">↪️</button>
     </header>
-
     <main class="conteudo-home">
       <section class="hero hero-personalizado">
         <img id="hero-usuario" src="assets/casal-login.png" alt="Usuário">
         <div id="hero-frase" class="hero-frase">Juntos em cada<br><strong>etapa</strong> 🧡</div>
       </section>
-
       <section class="saudacao"><p>Olá, <strong id="nome-usuario">👋</strong></p></section>
-
       <section class="grid-modulos">
         <button class="modulo" data-modulo="financeiro"><div class="emoji">🪙</div><strong>Financeiro</strong><span>Contas, pagamentos<br>e comprovantes</span></button>
         <button class="modulo" data-modulo="mercado"><div class="emoji">🛒</div><strong>Mercado</strong><span>Lista de compras<br>e registros</span></button>
@@ -72,10 +51,20 @@
         <button class="modulo" data-modulo="comprovantes"><div class="emoji">🧾</div><strong>Comprovantes</strong><span>Seus comprovantes<br>organizados</span></button>
         <button class="modulo" data-modulo="configuracoes"><div class="emoji">⚙️</div><strong>Configurações</strong><span>Categorias, contas<br>e preferências</span></button>
       </section>
-
       <section class="versiculo-home">📖<p>“Entrega o teu caminho ao Senhor;<br>confia nEle, e Ele tudo fará.”<strong>Salmos 37:5</strong></p>🧡</section>
     </main>
   </section>
-  <script src="app.js"></script>
+
+  <section id="tela-modulo" class="tela escondido">
+    <header class="topo topo-modulo">
+      <button class="icone-topo" id="btn-voltar" aria-label="Voltar">←</button>
+      <div class="titulo-topo"><strong>LeFe <span>Finances</span></strong><small id="subtitulo-modulo">Fernando & Letícia</small></div>
+      <button class="icone-topo" id="btn-logout-modulo" title="Sair" aria-label="Sair">↪️</button>
+    </header>
+    <main id="modulo-conteudo" class="conteudo-modulo"></main>
+  </section>
+
+  <div id="toast" class="toast escondido"></div>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
