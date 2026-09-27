@@ -1,4 +1,4 @@
-const API_URL='COLE_AQUI_SUA_URL_DO_APPS_SCRIPT_EXEC';
+const API_URL='https://script.google.com/macros/s/AKfycbxvqJpcrAHSgxTDJ7-U_spCaCmJf2oCbOl5qo3ULdH0lWdggkJYqJhkQCLzkib0t_yEvg/exec';
 
 let sessao={token:localStorage.getItem('vf_token'),usuario:JSON.parse(localStorage.getItem('vf_usuario')||'null')};
 let moduloAtual=null;
