@@ -13,9 +13,9 @@ document.addEventListener('DOMContentLoaded',iniciarApp);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=8');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=9');
       await reg.update();
-      console.log('LeFe Finances PWA v8 ativo.',reg.scope);
+      console.log('LeFe Finances PWA v9 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }

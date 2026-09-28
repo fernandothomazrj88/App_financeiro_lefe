@@ -1,10 +1,10 @@
-const CACHE_NAME='lefe-finances-v8';
+const CACHE_NAME='lefe-finances-v9';
 
 const ARQUIVOS=[
   './',
   './index.html',
-  './style.css?v=8',
-  './app.js?v=8',
+  './style.css?v=9',
+  './app.js?v=9',
   './manifest.json',
   './assets/icon-192.png',
   './assets/icon-512.png',
@@ -16,36 +16,58 @@ const ARQUIVOS=[
 self.addEventListener('install',event=>{
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache=>cache.addAll(ARQUIVOS))
+    caches.open(CACHE_NAME)
+      .then(cache=>cache.addAll(ARQUIVOS))
+      .catch(()=>{})
   );
 });
 
 self.addEventListener('activate',event=>{
   event.waitUntil(
     caches.keys()
-      .then(nomes=>Promise.all(nomes.map(nome=>nome!==CACHE_NAME?caches.delete(nome):null)))
+      .then(nomes=>Promise.all(
+        nomes
+          .filter(nome=>nome!==CACHE_NAME)
+          .map(nome=>caches.delete(nome))
+      ))
       .then(()=>self.clients.claim())
   );
 });
 
 self.addEventListener('fetch',event=>{
   const request=event.request;
-  const url=new URL(request.url);
 
-  if(
-    url.hostname.includes('script.google.com') ||
-    url.hostname.includes('script.googleusercontent.com')
-  ){
-    event.respondWith(fetch(request,{cache:'no-store'}));
+  /*
+   * MUITO IMPORTANTE:
+   * Nunca interceptar POST/PUT/etc.
+   * As chamadas da API do Apps Script são POST.
+   */
+  if(request.method!=='GET'){
     return;
   }
 
+  const url=new URL(request.url);
+
+  /*
+   * Nunca interceptar recursos externos.
+   * Isso deixa Google Apps Script / Google Drive
+   * conversarem diretamente com o navegador.
+   */
+  if(url.origin!==self.location.origin){
+    return;
+  }
+
+  /* Navegação: rede primeiro, cache como fallback. */
   if(request.mode==='navigate'){
     event.respondWith(
       fetch(request,{cache:'no-store'})
         .then(response=>{
-          const copia=response.clone();
-          caches.open(CACHE_NAME).then(cache=>cache.put('./index.html',copia));
+          if(response && response.ok){
+            const copia=response.clone();
+            caches.open(CACHE_NAME)
+              .then(cache=>cache.put('./index.html',copia))
+              .catch(()=>{});
+          }
           return response;
         })
         .catch(()=>caches.match('./index.html'))
@@ -53,12 +75,15 @@ self.addEventListener('fetch',event=>{
     return;
   }
 
+  /* Arquivos locais: rede primeiro, cache como fallback. */
   event.respondWith(
-    fetch(request)
+    fetch(request,{cache:'no-store'})
       .then(response=>{
-        if(response && response.status===200){
+        if(response && response.ok){
           const copia=response.clone();
-          caches.open(CACHE_NAME).then(cache=>cache.put(request,copia));
+          caches.open(CACHE_NAME)
+            .then(cache=>cache.put(request,copia))
+            .catch(()=>{});
         }
         return response;
       })
