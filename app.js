@@ -13,9 +13,9 @@ document.addEventListener('DOMContentLoaded',iniciarApp);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=9');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=10');
       await reg.update();
-      console.log('LeFe Finances PWA v9 ativo.',reg.scope);
+      console.log('LeFe Finances PWA v10 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
@@ -539,8 +539,7 @@ async function chamarApi(dados){
   const r=await fetch(API_URL,{
     method:'POST',
     headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body:JSON.stringify(dados),
-    cache:'no-store'
+    body:JSON.stringify(dados)
   });
 
   if(!r.ok) throw new Error('Erro de comunicação com o servidor.');
