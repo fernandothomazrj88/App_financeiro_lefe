@@ -1,4 +1,4 @@
-const API_URL='https://script.google.com/macros/s/AKfycbxvqJpcrAHsgxTDJ7-U_spCaCmJf2oCbOl5qo3ULDHOlWdggkJYqJhkQCLzkib0t_yEvg/exec';
+const API_URL='https://script.google.com/macros/s/AKfycbxvqJpcrAHSgxTDJ7-U_spCaCmJf2oCbOl5qo3ULdH0lWdggkJYqJhkQCLzkib0t_yEvg/exec';
 
 let sessao={
   token:localStorage.getItem('vf_token'),
@@ -13,9 +13,9 @@ document.addEventListener('DOMContentLoaded',iniciarApp);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=10');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=11');
       await reg.update();
-      console.log('LeFe Finances PWA v10 ativo.',reg.scope);
+      console.log('LeFe Finances PWA v11 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
