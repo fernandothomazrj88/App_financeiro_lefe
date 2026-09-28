@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lefe-finances-v6';
+const CACHE_NAME = 'lefe-finances-v7';
 
 const ARQUIVOS = [
   './',
