@@ -109,3 +109,240 @@ body {
       env(safe-area-inset-bottom)
     );
 }
+/* =========================================================
+   LEFE FINANCES V8 - REGISTRAR PAGAMENTO
+   ADICIONE ESTE BLOCO NO FINAL DO style.css ATUAL
+========================================================= */
+
+.item-financeiro{
+  align-items:flex-start;
+}
+
+.info-item-financeiro{
+  min-width:0;
+}
+
+.lado-item-financeiro{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:9px;
+  min-width:128px;
+}
+
+.botao-pagar{
+  border:1px solid var(--laranja);
+  background:var(--laranja);
+  color:#fff;
+  border-radius:10px;
+  padding:8px 10px;
+  font-size:11px;
+  font-weight:700;
+  line-height:1.15;
+  max-width:150px;
+}
+
+.botao-pagar:active{
+  transform:scale(.97);
+}
+
+.conta-pagamento-resumo{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:12px;
+  align-items:center;
+  border:1px solid var(--laranja);
+  border-radius:16px;
+  background:var(--preto-card);
+  padding:14px;
+  margin-bottom:14px;
+}
+
+.conta-pagamento-resumo>div:first-child{
+  min-width:0;
+}
+
+.conta-pagamento-resumo>div:first-child strong{
+  display:block;
+  font-size:18px;
+  margin-bottom:5px;
+}
+
+.conta-pagamento-resumo>div:first-child span{
+  color:#bbb;
+  font-size:12px;
+}
+
+.resumo-pagamento-direita{
+  text-align:right;
+}
+
+.resumo-pagamento-direita>strong{
+  display:block;
+  font-size:19px;
+  margin-bottom:5px;
+}
+
+.form-pagamento{
+  display:flex;
+  flex-direction:column;
+  gap:11px;
+}
+
+.campo-pagamento{
+  display:block;
+  border:1px solid #3a3a3a;
+  background:var(--preto-card);
+  border-radius:16px;
+  padding:13px;
+}
+
+.campo-pagamento>span,
+.linha-campo-comprovante>span{
+  display:block;
+  color:#fff;
+  font-size:14px;
+  font-weight:700;
+  margin-bottom:9px;
+}
+
+.campo-pagamento input[type="number"],
+.campo-pagamento input[type="date"],
+.campo-pagamento textarea{
+  width:100%;
+  border:1px solid #5a5a5a;
+  background:#181818;
+  color:#fff;
+  border-radius:12px;
+  padding:13px;
+  outline:none;
+}
+
+.campo-pagamento textarea{
+  resize:vertical;
+  min-height:84px;
+}
+
+.campo-pagamento input:focus,
+.campo-pagamento textarea:focus{
+  border-color:var(--laranja);
+}
+
+.formas-pagamento{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:8px;
+}
+
+.forma-pagamento{
+  border:1px solid #555;
+  background:#111;
+  color:#fff;
+  border-radius:12px;
+  padding:11px 8px;
+  font-size:13px;
+  font-weight:700;
+}
+
+.forma-pagamento.ativo{
+  background:var(--laranja);
+  border-color:var(--laranja);
+}
+
+.linha-campo-comprovante{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.linha-campo-comprovante small{
+  color:#aaa;
+  font-size:10px;
+  text-align:right;
+}
+
+.seletor-arquivo{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  min-height:105px;
+  border:1px dashed var(--laranja);
+  border-radius:13px;
+  padding:13px;
+  text-align:center;
+  cursor:pointer;
+  background:#15100d;
+}
+
+.seletor-arquivo input{
+  display:none;
+}
+
+.seletor-arquivo strong{
+  color:var(--laranja);
+  font-size:15px;
+}
+
+.seletor-arquivo span{
+  color:#bbb;
+  font-size:11px;
+  overflow-wrap:anywhere;
+}
+
+.botao-salvar-pagamento,
+.botao-cancelar-pagamento{
+  width:100%;
+  border-radius:14px;
+  padding:14px;
+  font-size:16px;
+  font-weight:700;
+}
+
+.botao-salvar-pagamento{
+  border:0;
+  background:var(--laranja);
+  color:#fff;
+}
+
+.botao-salvar-pagamento:disabled{
+  opacity:.6;
+  cursor:wait;
+}
+
+.botao-cancelar-pagamento{
+  border:1px solid var(--laranja);
+  background:#000;
+  color:#fff;
+}
+
+@media(max-width:380px){
+  .item-financeiro{
+    grid-template-columns:1fr;
+  }
+
+  .lado-item-financeiro{
+    width:100%;
+    min-width:0;
+    align-items:stretch;
+  }
+
+  .lado-item-financeiro .valor{
+    text-align:left;
+  }
+
+  .botao-pagar{
+    max-width:none;
+    width:100%;
+  }
+
+  .conta-pagamento-resumo{
+    grid-template-columns:1fr;
+  }
+
+  .resumo-pagamento-direita{
+    text-align:left;
+  }
+}
