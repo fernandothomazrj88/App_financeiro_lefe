@@ -346,3 +346,80 @@ body {
     text-align:left;
   }
 }
+
+
+/* =========================================================
+   NOVA DESPESA - V12
+========================================================= */
+
+.cabecalho-financeiro{
+  position:relative;
+}
+
+.cabecalho-financeiro .cabecalho-modulo{
+  margin-bottom:10px;
+  padding-right:145px;
+}
+
+.botao-nova-despesa{
+  position:absolute;
+  top:2px;
+  right:0;
+  border:1px solid var(--laranja);
+  background:var(--laranja);
+  color:#fff;
+  border-radius:12px;
+  padding:10px 11px;
+  font-size:12px;
+  font-weight:700;
+  line-height:1.1;
+  box-shadow:0 4px 12px rgba(237,112,20,.16);
+}
+
+.botao-nova-despesa:active{
+  transform:scale(.97);
+}
+
+.form-nova-despesa{
+  margin-top:2px;
+}
+
+.form-nova-despesa select,
+.form-nova-despesa input[type="month"]{
+  width:100%;
+  border:1px solid #5a5a5a;
+  background:#181818;
+  color:#fff;
+  border-radius:12px;
+  padding:13px;
+  outline:none;
+}
+
+.form-nova-despesa select:focus,
+.form-nova-despesa input[type="month"]:focus{
+  border-color:var(--laranja);
+}
+
+.ajuda-campo{
+  display:block;
+  margin-top:7px;
+  color:#999;
+  font-size:11px;
+  line-height:1.35;
+}
+
+@media(max-width:380px){
+  .cabecalho-financeiro .cabecalho-modulo{
+    padding-right:0;
+    padding-bottom:52px;
+  }
+
+  .botao-nova-despesa{
+    top:auto;
+    bottom:0;
+    left:0;
+    right:0;
+    width:100%;
+    text-align:center;
+  }
+}

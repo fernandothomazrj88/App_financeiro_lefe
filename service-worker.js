@@ -1,10 +1,10 @@
-const CACHE_NAME='lefe-finances-v11';
+const CACHE_NAME='lefe-finances-v12';
 
 const ARQUIVOS=[
   './',
   './index.html',
-  './style.css?v=9',
-  './app.js?v=11',
+  './style.css?v=12',
+  './app.js?v=12',
   './manifest.json',
   './assets/icon-192.png',
   './assets/icon-512.png',

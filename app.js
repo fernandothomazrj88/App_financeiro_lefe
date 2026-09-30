@@ -13,9 +13,9 @@ document.addEventListener('DOMContentLoaded',iniciarApp);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=11');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=12');
       await reg.update();
-      console.log('LeFe Finances PWA v11 ativo.',reg.scope);
+      console.log('LeFe Finances PWA v12 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
@@ -123,7 +123,10 @@ async function sair(){
 }
 
 async function voltarModuloOuHome(){
-  if(subtelaModulo==='registrar-pagamento' && moduloAtual==='financeiro'){
+  if(
+    moduloAtual==='financeiro' &&
+    (subtelaModulo==='registrar-pagamento' || subtelaModulo==='nova-despesa')
+  ){
     subtelaModulo=null;
     const c=$('modulo-conteudo');
     c.innerHTML='<div class="carregando">Carregando...</div>';
@@ -179,7 +182,10 @@ async function renderFinanceiro(c){
   assertOk(lista);
 
   c.innerHTML=
-    cabecalho('🪙','Financeiro','Contas, pagamentos e comprovantes')+
+    `<div class="cabecalho-financeiro">
+      ${cabecalho('🪙','Financeiro','Contas, pagamentos e comprovantes')}
+      <button id="btn-nova-despesa" type="button" class="botao-nova-despesa">＋ Nova despesa</button>
+    </div>`+
     `<div class="cards-resumo">
       <div class="card-resumo"><small>Entradas</small><strong class="verde">${moeda(resumo.dados.entradas)}</strong></div>
       <div class="card-resumo"><small>Saídas</small><strong class="vermelho">${moeda(resumo.dados.saidas)}</strong></div>
@@ -192,6 +198,10 @@ async function renderFinanceiro(c){
         ${lista.dados.length?lista.dados.map(itemFinanceiro).join(''):'<div class="vazio">Nenhum lançamento neste mês.</div>'}
       </div>
     </div>`;
+
+  $('btn-nova-despesa').addEventListener('click',async()=>{
+    await renderNovaDespesa(c);
+  });
 
   c.querySelectorAll('[data-pagar-id]').forEach(btn=>{
     btn.addEventListener('click',async()=>{
@@ -220,6 +230,167 @@ function itemFinanceiro(x){
       ${podePagar?`<button class="botao-pagar" data-pagar-id="${escAttr(x.id)}">💳 Registrar pagamento</button>`:''}
     </div>
   </div>`;
+}
+
+async function renderNovaDespesa(c){
+  subtelaModulo='nova-despesa';
+  rolarModuloTopo();
+
+  let categorias=[
+    'Moradia',
+    'Energia',
+    'Internet',
+    'Telefone',
+    'Cartões',
+    'Dívidas',
+    'Assinaturas',
+    'Educação',
+    'Mercado',
+    'Saúde',
+    'Transporte',
+    'Lazer',
+    'Outros'
+  ];
+
+  try{
+    const r=await chamarApi({
+      action:'listarConfig',
+      token:sessao.token,
+      tipo:'CATEGORIA_DESPESA'
+    });
+    assertOk(r);
+
+    const configuradas=(r.dados||[])
+      .map(x=>String(x.nome||'').trim())
+      .filter(Boolean);
+
+    if(configuradas.length) categorias=[...new Set(configuradas)];
+  }catch(e){
+    // Mantém categorias padrão para que o cadastro continue disponível.
+  }
+
+  const ref=referenciaAtual();
+  const refInput=ref.split('/').reverse().join('-');
+
+  c.innerHTML=
+    cabecalho('💸','Nova despesa','Cadastre uma nova conta ou gasto')+
+    `<form id="form-nova-despesa" class="form-pagamento form-nova-despesa">
+
+      <label class="campo-pagamento">
+        <span>📝 Descrição *</span>
+        <input id="despesa-descricao" type="text" maxlength="120" placeholder="Ex.: Conta de luz" required>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>💲 Valor *</span>
+        <input id="despesa-valor" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>🏷️ Categoria *</span>
+        <select id="despesa-categoria" required>
+          <option value="">Selecione uma categoria</option>
+          ${categorias.map(x=>`<option value="${escAttr(x)}">${esc(x)}</option>`).join('')}
+        </select>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>📅 Vencimento *</span>
+        <input id="despesa-vencimento" type="date" value="${dataInputHoje()}" required>
+        <small class="ajuda-campo">Se a data já passou, a conta será criada como atrasada.</small>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>🗓️ Referência *</span>
+        <input id="despesa-referencia" type="month" value="${escAttr(refInput)}" required>
+        <small class="ajuda-campo">É o mês ao qual esta despesa pertence.</small>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>🔁 Recorrente</span>
+        <select id="despesa-recorrente">
+          <option value="NÃO">Não</option>
+          <option value="SIM">Sim</option>
+        </select>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>💬 Observação</span>
+        <textarea id="despesa-observacao" rows="3" maxlength="250" placeholder="Ex.: vence todo dia 10"></textarea>
+      </label>
+
+      <button id="btn-salvar-despesa" type="submit" class="botao-salvar-pagamento">💾 Salvar despesa</button>
+      <button id="btn-cancelar-despesa" type="button" class="botao-cancelar-pagamento">Cancelar</button>
+    </form>`;
+
+  $('btn-cancelar-despesa').addEventListener('click',async()=>{
+    subtelaModulo=null;
+    c.innerHTML='<div class="carregando">Carregando...</div>';
+    await renderFinanceiro(c);
+    rolarModuloTopo();
+  });
+
+  $('form-nova-despesa').addEventListener('submit',async e=>{
+    e.preventDefault();
+
+    const botao=$('btn-salvar-despesa');
+    const descricao=$('despesa-descricao').value.trim();
+    const valor=Number($('despesa-valor').value||0);
+    const categoria=$('despesa-categoria').value;
+    const vencimento=$('despesa-vencimento').value;
+    const refMes=$('despesa-referencia').value;
+    const recorrente=$('despesa-recorrente').value;
+    const observacao=$('despesa-observacao').value.trim();
+
+    if(!descricao) return toast('Informe a descrição.');
+    if(valor<=0) return toast('Informe um valor válido.');
+    if(!categoria) return toast('Escolha uma categoria.');
+    if(!vencimento) return toast('Informe o vencimento.');
+    if(!refMes) return toast('Informe a referência.');
+
+    const referencia=`${refMes.slice(5,7)}/${refMes.slice(0,4)}`;
+
+    botao.disabled=true;
+    botao.textContent='Salvando despesa...';
+
+    try{
+      const r=await chamarApi({
+        action:'novoLancamento',
+        token:sessao.token,
+        dados:{
+          tipo:'DESPESA',
+          descricao,
+          categoria,
+          referencia,
+          valor,
+          vencimento,
+          dataPagamento:'',
+          formaPagamento:'',
+          parcelaAtual:'',
+          totalParcelas:'',
+          grupoParcela:'',
+          observacao,
+          recorrente
+        }
+      });
+
+      assertOk(r);
+
+      toast(
+        r.status==='ATRASADO'
+          ? 'Despesa cadastrada como atrasada ⚠️'
+          : 'Despesa cadastrada com sucesso ✅'
+      );
+
+      subtelaModulo=null;
+      await renderFinanceiro(c);
+      rolarModuloTopo();
+    }catch(err){
+      toast(err.message||'Erro ao cadastrar despesa.');
+      botao.disabled=false;
+      botao.textContent='💾 Salvar despesa';
+    }
+  });
 }
 
 async function renderRegistrarPagamento(c,item){
