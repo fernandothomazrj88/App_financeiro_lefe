@@ -1,4 +1,4 @@
-const CACHE_NAME='lefe-home-v14';
+const CACHE_NAME='lefe-home-v15';
 
 const ARQUIVOS=[
   './',
