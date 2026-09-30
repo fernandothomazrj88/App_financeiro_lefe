@@ -591,3 +591,286 @@ body {
     width:100%;
   }
 }
+
+/* =========================================================
+   LEFE HOME V16 - COMPRAS PLANEJADAS
+========================================================= */
+
+.cabecalho-compras-planejadas{
+  position:relative;
+}
+
+.cabecalho-compras-planejadas .cabecalho-modulo{
+  margin-bottom:10px;
+  padding-right:125px;
+}
+
+.botao-nova-compra-planejada{
+  position:absolute;
+  top:2px;
+  right:0;
+  border:1px solid var(--laranja);
+  background:var(--laranja);
+  color:#fff;
+  border-radius:12px;
+  padding:10px 12px;
+  font-size:12px;
+  font-weight:700;
+  line-height:1.1;
+  box-shadow:0 4px 12px rgba(237,112,20,.16);
+}
+
+.botao-nova-compra-planejada:active,
+.botao-buscar-produto:active,
+.botao-link-compra:active{
+  transform:scale(.97);
+}
+
+.cards-resumo-compras{
+  margin-top:2px;
+}
+
+.barra-filtros-compras{
+  display:flex;
+  gap:7px;
+  overflow:auto;
+  padding:1px 0 7px;
+  margin-bottom:6px;
+  scrollbar-width:none;
+}
+
+.barra-filtros-compras::-webkit-scrollbar{
+  display:none;
+}
+
+.chip-compra{
+  font-size:11px;
+}
+
+.lista-compras-planejadas{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.card-compra-planejada{
+  background:var(--preto-card);
+  border:1px solid #333;
+  border-radius:17px;
+  padding:10px;
+  display:grid;
+  grid-template-columns:78px 1fr;
+  gap:11px;
+  overflow:hidden;
+}
+
+.imagem-compra-planejada{
+  width:78px;
+  height:78px;
+  object-fit:cover;
+  border-radius:13px;
+  background:#191919;
+  border:1px solid #333;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:29px;
+}
+
+.imagem-compra-planejada.sem-imagem{
+  color:var(--laranja);
+}
+
+.conteudo-compra-planejada{
+  min-width:0;
+}
+
+.topo-card-compra{
+  display:flex;
+  justify-content:space-between;
+  gap:9px;
+  align-items:flex-start;
+}
+
+.topo-card-compra h3{
+  font-size:15px;
+  line-height:1.18;
+}
+
+.meta-compra-planejada{
+  color:#aaa;
+  font-size:11px;
+  line-height:1.35;
+  margin-top:4px;
+}
+
+.preco-compra-planejada{
+  color:var(--laranja);
+  font-size:15px;
+  white-space:nowrap;
+}
+
+.descricao-compra-planejada{
+  color:#ccc;
+  font-size:11px;
+  line-height:1.4;
+  margin-top:7px;
+  display:-webkit-box;
+  -webkit-line-clamp:3;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+
+.linha-status-compra{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  margin-top:8px;
+}
+
+.badge-compra{
+  display:inline-block;
+  padding:5px 8px;
+  border-radius:999px;
+  font-size:10px;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+.badge-compra.desejada{background:#8a6100;color:#fff}
+.badge-compra.pesquisando{background:#165c8a;color:#fff}
+.badge-compra.aguardando{background:#60418d;color:#fff}
+.badge-compra.comprada{background:#0b7c35;color:#fff}
+.badge-compra.desistimos{background:#555;color:#fff}
+
+.select-status-compra{
+  min-width:0;
+  flex:1;
+  border:1px solid #4b4b4b;
+  background:#181818;
+  color:#fff;
+  border-radius:9px;
+  padding:7px 8px;
+  font-size:10px;
+  outline:none;
+}
+
+.select-status-compra:focus{
+  border-color:var(--laranja);
+}
+
+.observacao-compra-planejada{
+  color:#aaa;
+  font-size:10px;
+  line-height:1.35;
+  margin-top:7px;
+}
+
+.acoes-compra-planejada{
+  display:flex;
+  gap:7px;
+  margin-top:9px;
+}
+
+.botao-link-compra{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  text-decoration:none;
+  border:1px solid var(--laranja);
+  background:transparent;
+  color:#fff;
+  border-radius:10px;
+  padding:7px 10px;
+  font-size:11px;
+  font-weight:700;
+}
+
+.campo-link-produto{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:7px;
+  margin-top:6px;
+}
+
+.campo-link-produto input{
+  margin-top:0 !important;
+}
+
+.botao-buscar-produto{
+  border:1px solid var(--laranja);
+  background:var(--laranja);
+  color:#fff;
+  border-radius:11px;
+  padding:0 14px;
+  font-size:12px;
+  font-weight:700;
+  min-width:76px;
+}
+
+.botao-buscar-produto:disabled{
+  opacity:.6;
+}
+
+.aviso-busca-produto{
+  background:#171717;
+  border:1px solid #3b3b3b;
+  color:#ccc;
+  border-radius:11px;
+  padding:10px 11px;
+  font-size:11px;
+  line-height:1.35;
+  margin-top:-5px;
+}
+
+.form-nova-compra-planejada select{
+  width:100%;
+  border:1px solid #5a5a5a;
+  background:#181818;
+  color:#fff;
+  border-radius:12px;
+  padding:13px;
+  outline:none;
+}
+
+.form-nova-compra-planejada select:focus{
+  border-color:var(--laranja);
+}
+
+@media(max-width:380px){
+  .cabecalho-compras-planejadas .cabecalho-modulo{
+    padding-right:0;
+    padding-bottom:50px;
+  }
+
+  .botao-nova-compra-planejada{
+    top:auto;
+    bottom:0;
+    left:0;
+    right:0;
+    width:100%;
+  }
+
+  .card-compra-planejada{
+    grid-template-columns:64px 1fr;
+    gap:9px;
+  }
+
+  .imagem-compra-planejada{
+    width:64px;
+    height:64px;
+  }
+
+  .preco-compra-planejada{
+    font-size:13px;
+  }
+
+  .linha-status-compra{
+    align-items:stretch;
+    flex-direction:column;
+  }
+
+  .select-status-compra{
+    width:100%;
+  }
+}

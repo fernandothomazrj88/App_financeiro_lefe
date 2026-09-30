@@ -1,10 +1,10 @@
-const CACHE_NAME='lefe-home-v15';
+const CACHE_NAME='lefe-home-v16';
 
 const ARQUIVOS=[
   './',
   './index.html',
-  './style.css?v=15',
-  './app.js?v=15',
+  './style.css?v=16',
+  './app.js?v=16',
   './manifest.json',
   './assets/icon-192.png',
   './assets/icon-512.png',

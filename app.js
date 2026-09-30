@@ -13,9 +13,9 @@ document.addEventListener('DOMContentLoaded',iniciarApp);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=14');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=16');
       await reg.update();
-      console.log('LeFe Home PWA v14 ativo.',reg.scope);
+      console.log('LeFe Home PWA v16 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
@@ -142,6 +142,19 @@ async function voltarModuloOuHome(){
     return;
   }
 
+  if(moduloAtual==='compras-planejadas' && subtelaModulo==='nova-compra-planejada'){
+    subtelaModulo=null;
+    const c=$('modulo-conteudo');
+    c.innerHTML='<div class="carregando">Carregando...</div>';
+    try{
+      await renderComprasPlanejadas(c);
+      rolarModuloTopo();
+    }catch(e){
+      c.innerHTML='<div class="erro">'+esc(e.message)+'</div>';
+    }
+    return;
+  }
+
   if(moduloAtual==='casa' && subtelaModulo==='nova-tarefa-casa'){
     subtelaModulo=null;
     const c=$('modulo-conteudo');
@@ -170,6 +183,7 @@ async function abrirModulo(modulo){
   try{
     if(modulo==='financeiro') await renderFinanceiro(c);
     else if(modulo==='casa') await renderCasa(c);
+    else if(modulo==='compras-planejadas') await renderComprasPlanejadas(c);
     else if(modulo==='mercado') await renderMercado(c);
     else if(modulo==='relatorios') await renderRelatorios(c);
     else if(modulo==='calendario') await renderCalendario(c);
@@ -894,6 +908,302 @@ async function renderNovaTarefaCasa(c){
       toast(err.message||'Não foi possível inserir a tarefa.');
       botao.disabled=false;
       botao.textContent='✅ Inserir tarefa';
+    }
+  });
+}
+
+/* =========================================================
+   COMPRAS PLANEJADAS
+========================================================= */
+
+async function renderComprasPlanejadas(c){
+  subtelaModulo=null;
+
+  const r=await chamarApi({
+    action:'listarComprasPlanejadas',
+    token:sessao.token
+  });
+  assertOk(r);
+
+  const itens=r.dados||[];
+  const planejadas=itens.filter(x=>!['COMPRADA','DESISTIMOS'].includes(String(x.status||'').toUpperCase()));
+  const totalPlanejado=planejadas.reduce((s,x)=>s+Number(x.preco||0),0);
+
+  const filtroAtual='TODAS';
+
+  c.innerHTML=
+    `<div class="cabecalho-compras-planejadas">
+      ${cabecalho('🛍️','Compras Planejadas','Coisas que queremos comprar depois')}
+      <button id="btn-nova-compra-planejada" type="button" class="botao-nova-compra-planejada">＋ Compra</button>
+    </div>`+
+    `<div class="cards-resumo cards-resumo-compras">
+      <div class="card-resumo"><small>Itens planejados</small><strong class="laranja">${planejadas.length}</strong></div>
+      <div class="card-resumo"><small>Total planejado</small><strong class="laranja">${moeda(totalPlanejado)}</strong></div>
+    </div>`+
+    `<div class="barra-filtros-compras">
+      ${chipCompra('TODAS','Todas',filtroAtual)}
+      ${chipCompra('DESEJADA','Quero comprar',filtroAtual)}
+      ${chipCompra('PESQUISANDO','Pesquisando',filtroAtual)}
+      ${chipCompra('AGUARDANDO','Aguardando',filtroAtual)}
+      ${chipCompra('COMPRADA','Compradas',filtroAtual)}
+    </div>`+
+    `<div id="lista-compras-planejadas" class="lista-compras-planejadas">
+      ${itens.length?itens.map(itemCompraPlanejada).join(''):'<div class="painel vazio">Ainda não há compras planejadas.<br>Adicione um produto pelo link da loja. 🛍️</div>'}
+    </div>`;
+
+  $('btn-nova-compra-planejada').addEventListener('click',async()=>{
+    await renderNovaCompraPlanejada(c);
+  });
+
+  c.querySelectorAll('[data-filtro-compra]').forEach(btn=>{
+    btn.addEventListener('click',()=>renderComprasPlanejadasFiltro(c,btn.dataset.filtroCompra));
+  });
+
+  c.querySelectorAll('[data-status-compra]').forEach(sel=>{
+    sel.addEventListener('change',async()=>{
+      sel.disabled=true;
+      try{
+        const rr=await chamarApi({
+          action:'atualizarStatusCompraPlanejada',
+          token:sessao.token,
+          id:sel.dataset.statusCompra,
+          status:sel.value
+        });
+        assertOk(rr);
+        toast('Status atualizado! ✅');
+        await renderComprasPlanejadas(c);
+      }catch(e){
+        toast(e.message||'Não foi possível atualizar.');
+        sel.disabled=false;
+      }
+    });
+  });
+}
+
+function chipCompra(valor,label,atual){
+  return `<button type="button" class="chip chip-compra ${valor===atual?'ativo':''}" data-filtro-compra="${escAttr(valor)}">${esc(label)}</button>`;
+}
+
+async function renderComprasPlanejadasFiltro(c,filtro){
+  const r=await chamarApi({action:'listarComprasPlanejadas',token:sessao.token,status:filtro==='TODAS'?'':filtro});
+  assertOk(r);
+  const itens=r.dados||[];
+  const todos=await chamarApi({action:'listarComprasPlanejadas',token:sessao.token});
+  assertOk(todos);
+  const planejadas=(todos.dados||[]).filter(x=>!['COMPRADA','DESISTIMOS'].includes(String(x.status||'').toUpperCase()));
+  const totalPlanejado=planejadas.reduce((s,x)=>s+Number(x.preco||0),0);
+
+  const lista=$('lista-compras-planejadas');
+  if(lista) lista.innerHTML=itens.length?itens.map(itemCompraPlanejada).join(''):'<div class="painel vazio">Nenhum item nesta categoria.</div>';
+
+  c.querySelectorAll('.chip-compra').forEach(b=>b.classList.toggle('ativo',b.dataset.filtroCompra===filtro));
+  const cards=c.querySelectorAll('.card-resumo strong');
+  if(cards[0]) cards[0].textContent=String(planejadas.length);
+  if(cards[1]) cards[1].textContent=moeda(totalPlanejado);
+
+  c.querySelectorAll('[data-status-compra]').forEach(sel=>{
+    sel.addEventListener('change',async()=>{
+      sel.disabled=true;
+      try{
+        const rr=await chamarApi({action:'atualizarStatusCompraPlanejada',token:sessao.token,id:sel.dataset.statusCompra,status:sel.value});
+        assertOk(rr);
+        toast('Status atualizado! ✅');
+        await renderComprasPlanejadasFiltro(c,filtro);
+      }catch(e){
+        toast(e.message||'Não foi possível atualizar.');
+        sel.disabled=false;
+      }
+    });
+  });
+}
+
+function itemCompraPlanejada(x){
+  const status=String(x.status||'DESEJADA').toUpperCase();
+  const imagem=x.imagemUrl?`<img class="imagem-compra-planejada" src="${escAttr(x.imagemUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`:'<div class="imagem-compra-planejada sem-imagem">🛍️</div>';
+  const descricao=x.descricao?`<div class="descricao-compra-planejada">${esc(x.descricao)}</div>`:'';
+  const preco=Number(x.preco||0)>0?moeda(x.preco):'Preço não informado';
+
+  return `<article class="card-compra-planejada">
+    ${imagem}
+    <div class="conteudo-compra-planejada">
+      <div class="topo-card-compra">
+        <div>
+          <h3>${esc(x.nome||'Produto')}</h3>
+          <div class="meta-compra-planejada">${esc(x.loja||'Loja não identificada')} ${x.categoria?'• '+esc(x.categoria):''}</div>
+        </div>
+        <strong class="preco-compra-planejada">${esc(preco)}</strong>
+      </div>
+      ${descricao}
+      <div class="linha-status-compra">
+        <span class="badge-compra ${status.toLowerCase()}">${esc(formatarStatusCompra(status))}</span>
+        <select class="select-status-compra" data-status-compra="${escAttr(x.id)}" aria-label="Status da compra">
+          ${statusOptionsCompra(status)}
+        </select>
+      </div>
+      ${x.observacao?`<div class="observacao-compra-planejada">💬 ${esc(x.observacao)}</div>`:''}
+      <div class="acoes-compra-planejada">
+        <a class="botao-link-compra" href="${escAttr(x.link)}" target="_blank" rel="noopener noreferrer">🔗 Ver produto</a>
+      </div>
+    </div>
+  </article>`;
+}
+
+function statusOptionsCompra(atual){
+  const op=[
+    ['DESEJADA','Quero comprar'],
+    ['PESQUISANDO','Pesquisando'],
+    ['AGUARDANDO','Aguardando oportunidade'],
+    ['COMPRADA','Comprada'],
+    ['DESISTIMOS','Desistimos']
+  ];
+  return op.map(([v,t])=>`<option value="${v}" ${v===atual?'selected':''}>${t}</option>`).join('');
+}
+
+function formatarStatusCompra(status){
+  return ({
+    DESEJADA:'Quero comprar',
+    PESQUISANDO:'Pesquisando',
+    AGUARDANDO:'Aguardando',
+    COMPRADA:'Comprada',
+    DESISTIMOS:'Desistimos'
+  })[status]||status;
+}
+
+async function renderNovaCompraPlanejada(c){
+  subtelaModulo='nova-compra-planejada';
+  rolarModuloTopo();
+
+  const categorias=['Casa','Vestuário','Cama, mesa e banho','Cozinha','Eletrônicos','Ferramentas','Outros'];
+
+  c.innerHTML=
+    cabecalho('🛍️','Adicionar compra','Cole o link e tente buscar os dados automaticamente')+
+    `<form id="form-nova-compra-planejada" class="form-pagamento form-nova-compra-planejada">
+      <label class="campo-pagamento">
+        <span>🔗 Link do produto *</span>
+        <div class="campo-link-produto">
+          <input id="compra-link" type="url" maxlength="2000" placeholder="https://loja.com/produto..." required>
+          <button id="btn-buscar-produto" type="button" class="botao-buscar-produto">Buscar</button>
+        </div>
+        <small class="ajuda-campo">O LeFe Home tenta encontrar nome, preço, loja e imagem.</small>
+      </label>
+
+      <div id="aviso-busca-produto" class="aviso-busca-produto escondido"></div>
+
+      <label class="campo-pagamento">
+        <span>📝 Nome do produto *</span>
+        <input id="compra-nome" type="text" maxlength="180" placeholder="Ex.: Jogo de cama casal" required>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>💰 Preço</span>
+        <input id="compra-preco" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00">
+      </label>
+
+      <label class="campo-pagamento">
+        <span>🏪 Loja</span>
+        <input id="compra-loja" type="text" maxlength="120" placeholder="Ex.: Mercado Livre">
+      </label>
+
+      <label class="campo-pagamento">
+        <span>🏷️ Categoria</span>
+        <select id="compra-categoria">
+          ${categorias.map(x=>`<option value="${escAttr(x)}">${esc(x)}</option>`).join('')}
+        </select>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>💬 Descrição</span>
+        <textarea id="compra-descricao" maxlength="500" rows="3" placeholder="Descrição encontrada no produto ou escrita por vocês."></textarea>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>📌 Status</span>
+        <select id="compra-status">
+          ${statusOptionsCompra('DESEJADA')}
+        </select>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>💬 Observação</span>
+        <textarea id="compra-observacao" maxlength="500" rows="3" placeholder="Ex.: esperar promoção ou comparar com outra loja."></textarea>
+      </label>
+
+      <input id="compra-imagem" type="hidden">
+
+      <button id="btn-salvar-compra-planejada" type="submit" class="botao-salvar-pagamento">🛍️ Adicionar à lista</button>
+      <button id="btn-cancelar-compra-planejada" type="button" class="botao-cancelar-pagamento">Cancelar</button>
+    </form>`;
+
+  $('btn-cancelar-compra-planejada').addEventListener('click',async()=>renderComprasPlanejadas(c));
+
+  $('btn-buscar-produto').addEventListener('click',async()=>{
+    const link=$('compra-link').value.trim();
+    if(!link) return toast('Cole primeiro o link do produto.');
+
+    const btn=$('btn-buscar-produto');
+    const aviso=$('aviso-busca-produto');
+    btn.disabled=true;
+    btn.textContent='Buscando...';
+    aviso.classList.remove('escondido');
+    aviso.textContent='🔎 Lendo os dados da página...';
+
+    try{
+      const r=await chamarApi({action:'buscarProdutoLink',token:sessao.token,link});
+      assertOk(r);
+      const d=r.dados||{};
+      if(d.nome) $('compra-nome').value=d.nome;
+      if(Number(d.preco||0)>0) $('compra-preco').value=Number(d.preco).toFixed(2);
+      if(d.loja) $('compra-loja').value=d.loja;
+      if(d.descricao) $('compra-descricao').value=d.descricao;
+      if(d.imagemUrl) $('compra-imagem').value=d.imagemUrl;
+      aviso.textContent=r.aviso||'✅ Dados encontrados. Confira antes de salvar.';
+    }catch(e){
+      aviso.textContent='⚠️ Não foi possível buscar automaticamente. Você pode preencher os campos manualmente.';
+      toast(e.message||'Não foi possível ler esse link.');
+    }finally{
+      btn.disabled=false;
+      btn.textContent='Buscar';
+    }
+  });
+
+  $('form-nova-compra-planejada').addEventListener('submit',async e=>{
+    e.preventDefault();
+
+    const btn=$('btn-salvar-compra-planejada');
+    const link=$('compra-link').value.trim();
+    const nome=$('compra-nome').value.trim();
+    const preco=Number($('compra-preco').value||0);
+
+    if(!link) return toast('Informe o link do produto.');
+    if(!nome) return toast('Informe o nome do produto.');
+
+    btn.disabled=true;
+    btn.textContent='Salvando...';
+
+    try{
+      const r=await chamarApi({
+        action:'inserirCompraPlanejada',
+        token:sessao.token,
+        dados:{
+          link,
+          nome,
+          descricao:$('compra-descricao').value.trim(),
+          preco,
+          loja:$('compra-loja').value.trim(),
+          categoria:$('compra-categoria').value,
+          status:$('compra-status').value,
+          imagemUrl:$('compra-imagem').value.trim(),
+          observacao:$('compra-observacao').value.trim()
+        }
+      });
+      assertOk(r);
+      toast('Compra adicionada à lista! 🛍️');
+      await renderComprasPlanejadas(c);
+      rolarModuloTopo();
+    }catch(err){
+      toast(err.message||'Não foi possível adicionar a compra.');
+      btn.disabled=false;
+      btn.textContent='🛍️ Adicionar à lista';
     }
   });
 }

@@ -1,23 +1,36 @@
-# LeFe Home
+# LeFe Home V16
 
-Aplicativo de organização da casa e das finanças do casal Letícia & Fernando.
+## Novidade
+Módulo **🛍️ Compras Planejadas**.
 
-## V14
-- Renomeado de LeFe Finances para **LeFe Home**.
-- Identidade principal passa a representar finanças, casa, mercado, calendário e futuras rotinas domésticas.
+Serve para guardar compras futuras sem exigir data de compra.
 
+### Recursos
+- Adicionar pelo link do produto
+- Tentar buscar automaticamente nome, descrição, preço, loja e imagem
+- Preenchimento manual quando a loja não permite leitura automática
+- Categorias
+- Status: Quero comprar, Pesquisando, Aguardando, Comprada, Desistimos
+- Total planejado
+- Abrir o produto original
 
-Aplicativo da vida financeira do casal Letícia & Fernando.
+## Backend
+No Apps Script, criar um arquivo chamado `ComprasPlanejadasApi.gs` com o conteúdo deste projeto e executar uma vez:
 
-## V12
-- Adicionada a tela **Nova despesa** no módulo Financeiro.
-- Botão **＋ Nova despesa** na tela Financeiro.
-- Cadastro via ação `novoLancamento` da API existente.
-- Categorias carregadas da configuração `CATEGORIA_DESPESA`, com fallback.
-- Referência, vencimento, recorrência e observação.
-- Status calculado pelo backend: `A_PAGAR` ou `ATRASADO`.
-- Mantido o fluxo existente de registrar pagamento e comprovantes.
+`configurarModuloComprasPlanejadas`
 
+Depois substituir o `Api.gs` pela versão V16 fornecida no pacote.
 
-## V13
-Cadastro de receitas e registro de recebimentos no módulo Financeiro.
+## Frontend
+Enviar para o GitHub os arquivos do frontend, principalmente:
+- index.html
+- app.js
+- style.css
+- service-worker.js
+- manifest.json
+- assets/
+
+Não colocar arquivos `.gs` no GitHub.
+
+## Observação sobre links
+A busca automática depende dos metadados que a loja disponibiliza e pode ser bloqueada por algumas lojas. Quando isso acontecer, o formulário continua permitindo preencher os dados manualmente.
