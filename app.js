@@ -13,9 +13,9 @@ document.addEventListener('DOMContentLoaded',iniciarApp);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=12');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=14');
       await reg.update();
-      console.log('LeFe Finances PWA v12 ativo.',reg.scope);
+      console.log('LeFe Home PWA v14 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
@@ -125,7 +125,7 @@ async function sair(){
 async function voltarModuloOuHome(){
   if(
     moduloAtual==='financeiro' &&
-    (subtelaModulo==='registrar-pagamento' || subtelaModulo==='nova-despesa')
+    (subtelaModulo==='registrar-pagamento' || subtelaModulo==='nova-despesa' || subtelaModulo==='nova-receita')
   ){
     subtelaModulo=null;
     const c=$('modulo-conteudo');
@@ -184,7 +184,10 @@ async function renderFinanceiro(c){
   c.innerHTML=
     `<div class="cabecalho-financeiro">
       ${cabecalho('🪙','Financeiro','Contas, pagamentos e comprovantes')}
-      <button id="btn-nova-despesa" type="button" class="botao-nova-despesa">＋ Nova despesa</button>
+      <div class="acoes-nova-financeiro">
+        <button id="btn-nova-despesa" type="button" class="botao-nova-despesa">＋ Despesa</button>
+        <button id="btn-nova-receita" type="button" class="botao-nova-receita">＋ Receita</button>
+      </div>
     </div>`+
     `<div class="cards-resumo">
       <div class="card-resumo"><small>Entradas</small><strong class="verde">${moeda(resumo.dados.entradas)}</strong></div>
@@ -203,11 +206,15 @@ async function renderFinanceiro(c){
     await renderNovaDespesa(c);
   });
 
-  c.querySelectorAll('[data-pagar-id]').forEach(btn=>{
+  $('btn-nova-receita').addEventListener('click',async()=>{
+    await renderNovaReceita(c);
+  });
+
+  c.querySelectorAll('[data-liquidar-id]').forEach(btn=>{
     btn.addEventListener('click',async()=>{
-      const id=btn.dataset.pagarId;
+      const id=btn.dataset.liquidarId;
       const item=(lista.dados||[]).find(x=>String(x.id)===String(id));
-      if(!item) return toast('Conta não encontrada.');
+      if(!item) return toast('Lançamento não encontrado.');
       await renderRegistrarPagamento(c,item);
     });
   });
@@ -215,9 +222,11 @@ async function renderFinanceiro(c){
 
 function itemFinanceiro(x){
   const st=String(x.status||'').toLowerCase().replaceAll('_','');
-  const podePagar=
-    x.tipo==='DESPESA' &&
-    ['A_PAGAR','ATRASADO'].includes(String(x.status||'').toUpperCase());
+  const ehReceita=x.tipo==='RECEITA';
+  const podeLiquidar=
+    (x.tipo==='DESPESA' && ['A_PAGAR','ATRASADO'].includes(String(x.status||'').toUpperCase())) ||
+    (x.tipo==='RECEITA' && String(x.status||'').toUpperCase()==='A_RECEBER');
+  const textoBotao=ehReceita?'💰 Registrar recebimento':'💳 Registrar pagamento';
 
   return `<div class="item-lista item-financeiro">
     <div class="info-item-financeiro">
@@ -226,8 +235,8 @@ function itemFinanceiro(x){
       <span class="badge ${st}">${esc(String(x.status||'').replaceAll('_',' '))}</span>
     </div>
     <div class="lado-item-financeiro">
-      <div class="valor ${x.tipo==='RECEITA'?'verde':'vermelho'}">${x.tipo==='RECEITA'?'+ ':'- '}${moeda(x.valor)}</div>
-      ${podePagar?`<button class="botao-pagar" data-pagar-id="${escAttr(x.id)}">💳 Registrar pagamento</button>`:''}
+      <div class="valor ${ehReceita?'verde':'vermelho'}">${ehReceita?'+ ':'- '}${moeda(x.valor)}</div>
+      ${podeLiquidar?`<button class="botao-pagar" data-liquidar-id="${escAttr(x.id)}">${textoBotao}</button>`:''}
     </div>
   </div>`;
 }
@@ -393,19 +402,164 @@ async function renderNovaDespesa(c){
   });
 }
 
+async function renderNovaReceita(c){
+  subtelaModulo='nova-receita';
+  rolarModuloTopo();
+
+  let categorias=['Salário','Férias','Bônus','Outros'];
+
+  try{
+    const r=await chamarApi({
+      action:'listarConfig',
+      token:sessao.token,
+      tipo:'CATEGORIA_RECEITA'
+    });
+    assertOk(r);
+
+    const configuradas=(r.dados||[])
+      .map(x=>String(x.nome||'').trim())
+      .filter(Boolean);
+
+    if(configuradas.length) categorias=[...new Set(configuradas)];
+  }catch(e){
+    // Mantém categorias padrão para que o cadastro continue disponível.
+  }
+
+  const ref=referenciaAtual();
+  const refInput=ref.split('/').reverse().join('-');
+
+  c.innerHTML=
+    cabecalho('💰','Nova receita','Cadastre uma entrada de dinheiro')+
+    `<form id="form-nova-receita" class="form-pagamento form-nova-receita">
+
+      <label class="campo-pagamento">
+        <span>📝 Descrição *</span>
+        <input id="receita-descricao" type="text" maxlength="120" placeholder="Ex.: Salário" required>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>💲 Valor *</span>
+        <input id="receita-valor" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>🏷️ Categoria *</span>
+        <select id="receita-categoria" required>
+          <option value="">Selecione uma categoria</option>
+          ${categorias.map(x=>`<option value="${escAttr(x)}">${esc(x)}</option>`).join('')}
+        </select>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>📅 Data prevista *</span>
+        <input id="receita-vencimento" type="date" value="${dataInputHoje()}" required>
+        <small class="ajuda-campo">A receita será criada como A RECEBER até você registrar o recebimento.</small>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>🗓️ Referência *</span>
+        <input id="receita-referencia" type="month" value="${escAttr(refInput)}" required>
+        <small class="ajuda-campo">É o mês ao qual esta receita pertence.</small>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>🔁 Recorrente</span>
+        <select id="receita-recorrente">
+          <option value="NÃO">Não</option>
+          <option value="SIM">Sim</option>
+        </select>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>💬 Observação</span>
+        <textarea id="receita-observacao" rows="3" maxlength="250" placeholder="Ex.: pagamento mensal"></textarea>
+      </label>
+
+      <button id="btn-salvar-receita" type="submit" class="botao-salvar-pagamento">💾 Salvar receita</button>
+      <button id="btn-cancelar-receita" type="button" class="botao-cancelar-pagamento">Cancelar</button>
+    </form>`;
+
+  $('btn-cancelar-receita').addEventListener('click',async()=>{
+    subtelaModulo=null;
+    c.innerHTML='<div class="carregando">Carregando...</div>';
+    await renderFinanceiro(c);
+    rolarModuloTopo();
+  });
+
+  $('form-nova-receita').addEventListener('submit',async e=>{
+    e.preventDefault();
+
+    const botao=$('btn-salvar-receita');
+    const descricao=$('receita-descricao').value.trim();
+    const valor=Number($('receita-valor').value||0);
+    const categoria=$('receita-categoria').value;
+    const vencimento=$('receita-vencimento').value;
+    const refMes=$('receita-referencia').value;
+    const recorrente=$('receita-recorrente').value;
+    const observacao=$('receita-observacao').value.trim();
+
+    if(!descricao) return toast('Informe a descrição.');
+    if(valor<=0) return toast('Informe um valor válido.');
+    if(!categoria) return toast('Escolha uma categoria.');
+    if(!vencimento) return toast('Informe a data prevista.');
+    if(!refMes) return toast('Informe a referência.');
+
+    const referencia=`${refMes.slice(5,7)}/${refMes.slice(0,4)}`;
+
+    botao.disabled=true;
+    botao.textContent='Salvando receita...';
+
+    try{
+      const r=await chamarApi({
+        action:'novoLancamento',
+        token:sessao.token,
+        dados:{
+          tipo:'RECEITA',
+          descricao,
+          categoria,
+          referencia,
+          valor,
+          vencimento,
+          dataPagamento:'',
+          formaPagamento:'',
+          parcelaAtual:'',
+          totalParcelas:'',
+          grupoParcela:'',
+          observacao,
+          recorrente
+        }
+      });
+
+      assertOk(r);
+      toast('Receita cadastrada com sucesso ✅');
+      subtelaModulo=null;
+      await renderFinanceiro(c);
+      rolarModuloTopo();
+    }catch(err){
+      toast(err.message||'Erro ao cadastrar receita.');
+      botao.disabled=false;
+      botao.textContent='💾 Salvar receita';
+    }
+  });
+}
+
 async function renderRegistrarPagamento(c,item){
   subtelaModulo='registrar-pagamento';
   rolarModuloTopo();
 
-  const venc=item.vencimento?dataBR(item.vencimento):'Sem vencimento';
+  const ehReceita=item.tipo==='RECEITA';
+  const titulo=ehReceita?'Registrar recebimento':'Registrar pagamento';
+  const subtitulo=ehReceita?'Preencha os dados do recebimento e anexe o comprovante':'Preencha os dados e anexe o comprovante';
+  const verbo=ehReceita?'recebido':'pago';
+  const venc=item.vencimento?dataBR(item.vencimento):'Sem data';
   const status=String(item.status||'').replaceAll('_',' ');
   const valor=Number(item.valor||0).toFixed(2);
 
   c.innerHTML=
-    cabecalho('🧾','Registrar pagamento','Preencha os dados e anexe o comprovante')+
+    cabecalho(ehReceita?'💰':'🧾',titulo,subtitulo)+
     `<section class="conta-pagamento-resumo">
       <div>
-        <strong>${esc(item.descricao||'Conta')}</strong>
+        <strong>${esc(item.descricao||'Lançamento')}</strong>
         <span>${esc(item.categoria||'')} • ${esc(venc)}</span>
       </div>
       <div class="resumo-pagamento-direita">
@@ -416,17 +570,17 @@ async function renderRegistrarPagamento(c,item){
 
     <form id="form-registrar-pagamento" class="form-pagamento">
       <label class="campo-pagamento">
-        <span>💲 Valor pago *</span>
+        <span>💲 Valor ${verbo} *</span>
         <input id="pagamento-valor" type="number" min="0.01" step="0.01" inputmode="decimal" value="${escAttr(valor)}" required>
       </label>
 
       <label class="campo-pagamento">
-        <span>📅 Data do pagamento *</span>
+        <span>📅 Data do ${ehReceita?'recebimento':'pagamento'} *</span>
         <input id="pagamento-data" type="date" value="${dataInputHoje()}" required>
       </label>
 
       <div class="campo-pagamento">
-        <span>💳 Forma de pagamento *</span>
+        <span>💳 Forma ${ehReceita?'de recebimento':'de pagamento'} *</span>
         <input id="pagamento-forma" type="hidden" value="PIX">
         <div class="formas-pagamento">
           <button type="button" class="forma-pagamento ativo" data-forma="PIX">🔷 PIX</button>
@@ -438,7 +592,7 @@ async function renderRegistrarPagamento(c,item){
 
       <label class="campo-pagamento">
         <span>💬 Observação</span>
-        <textarea id="pagamento-observacao" rows="3" maxlength="250" placeholder="Ex.: pago pelo app do banco"></textarea>
+        <textarea id="pagamento-observacao" rows="3" maxlength="250" placeholder="Ex.: ${ehReceita?'recebido via banco':'pago pelo app do banco'}"></textarea>
       </label>
 
       <div class="campo-pagamento campo-comprovante">
@@ -453,7 +607,7 @@ async function renderRegistrarPagamento(c,item){
         </label>
       </div>
 
-      <button id="btn-salvar-pagamento" type="submit" class="botao-salvar-pagamento">✅ Salvar pagamento</button>
+      <button id="btn-salvar-pagamento" type="submit" class="botao-salvar-pagamento">✅ Salvar ${ehReceita?'recebimento':'pagamento'}</button>
       <button id="btn-cancelar-pagamento" type="button" class="botao-cancelar-pagamento">Cancelar</button>
     </form>`;
 
@@ -487,9 +641,9 @@ async function renderRegistrarPagamento(c,item){
     const observacao=$('pagamento-observacao').value.trim();
     const file=$('pagamento-arquivo').files?.[0]||null;
 
-    if(valorPago<=0) return toast('Informe um valor pago válido.');
-    if(!dataPagamento) return toast('Informe a data do pagamento.');
-    if(!formaPagamento) return toast('Escolha a forma de pagamento.');
+    if(valorPago<=0) return toast(`Informe um valor ${verbo} válido.`);
+    if(!dataPagamento) return toast(`Informe a data do ${ehReceita?'recebimento':'pagamento'}.`);
+    if(!formaPagamento) return toast(`Escolha a forma ${ehReceita?'de recebimento':'de pagamento'}.`);
 
     botao.disabled=true;
     botao.textContent=file?'Enviando comprovante...':'Salvando...';
@@ -511,21 +665,22 @@ async function renderRegistrarPagamento(c,item){
         payload.arquivo=await arquivoParaPayload(file);
       }
 
-      botao.textContent='Salvando pagamento...';
+      botao.textContent=`Salvando ${ehReceita?'recebimento':'pagamento'}...`;
       const r=await chamarApi(payload);
       assertOk(r);
 
-      toast('Pagamento registrado com sucesso ✅');
+      toast(`${ehReceita?'Recebimento':'Pagamento'} registrado com sucesso ✅`);
       subtelaModulo=null;
       await renderFinanceiro(c);
       rolarModuloTopo();
     }catch(err){
-      toast(err.message||'Erro ao registrar pagamento.');
+      toast(err.message||`Erro ao registrar ${ehReceita?'recebimento':'pagamento'}.`);
       botao.disabled=false;
-      botao.textContent='✅ Salvar pagamento';
+      botao.textContent=`✅ Salvar ${ehReceita?'recebimento':'pagamento'}`;
     }
   });
 }
+
 
 /* =========================================================
    MERCADO

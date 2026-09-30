@@ -110,7 +110,7 @@ body {
     );
 }
 /* =========================================================
-   LEFE FINANCES V8 - REGISTRAR PAGAMENTO
+   LEFE HOME V14 - REGISTRAR PAGAMENTO
    ADICIONE ESTE BLOCO NO FINAL DO style.css ATUAL
 ========================================================= */
 
@@ -349,7 +349,7 @@ body {
 
 
 /* =========================================================
-   NOVA DESPESA - V12
+   NOVA DESPESA + NOVA RECEITA - V13
 ========================================================= */
 
 .cabecalho-financeiro{
@@ -358,25 +358,37 @@ body {
 
 .cabecalho-financeiro .cabecalho-modulo{
   margin-bottom:10px;
-  padding-right:145px;
+  padding-right:175px;
 }
 
-.botao-nova-despesa{
+.acoes-nova-financeiro{
   position:absolute;
   top:2px;
   right:0;
+  display:flex;
+  gap:5px;
+}
+
+.botao-nova-despesa,
+.botao-nova-receita{
   border:1px solid var(--laranja);
   background:var(--laranja);
   color:#fff;
   border-radius:12px;
-  padding:10px 11px;
-  font-size:12px;
+  padding:10px 9px;
+  font-size:11px;
   font-weight:700;
   line-height:1.1;
   box-shadow:0 4px 12px rgba(237,112,20,.16);
 }
 
-.botao-nova-despesa:active{
+.botao-nova-receita{
+  background:#0b7c35;
+  border-color:#0b7c35;
+}
+
+.botao-nova-despesa:active,
+.botao-nova-receita:active{
   transform:scale(.97);
 }
 
@@ -385,7 +397,9 @@ body {
 }
 
 .form-nova-despesa select,
-.form-nova-despesa input[type="month"]{
+.form-nova-despesa input[type="month"],
+.form-nova-receita select,
+.form-nova-receita input[type="month"]{
   width:100%;
   border:1px solid #5a5a5a;
   background:#181818;
@@ -396,7 +410,9 @@ body {
 }
 
 .form-nova-despesa select:focus,
-.form-nova-despesa input[type="month"]:focus{
+.form-nova-despesa input[type="month"]:focus,
+.form-nova-receita select:focus,
+.form-nova-receita input[type="month"]:focus{
   border-color:var(--laranja);
 }
 
@@ -414,11 +430,18 @@ body {
     padding-bottom:52px;
   }
 
-  .botao-nova-despesa{
+  .acoes-nova-financeiro{
     top:auto;
     bottom:0;
     left:0;
     right:0;
+    width:100%;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+  }
+
+  .botao-nova-despesa,
+  .botao-nova-receita{
     width:100%;
     text-align:center;
   }

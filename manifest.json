@@ -1,7 +1,7 @@
 {
-  "name": "LeFe Finances",
-  "short_name": "LeFe Finances",
-  "description": "Controle financeiro de Fernando e Letícia",
+  "name": "LeFe Home",
+  "short_name": "LeFe Home",
+  "description": "Organização da casa e das finanças de Fernando e Letícia",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
