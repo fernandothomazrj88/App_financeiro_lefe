@@ -123,10 +123,13 @@ async function sair(){
 }
 
 async function voltarModuloOuHome(){
-  if(
-    moduloAtual==='financeiro' &&
-    (subtelaModulo==='registrar-pagamento' || subtelaModulo==='nova-despesa' || subtelaModulo==='nova-receita')
-  ){
+  const financeiroSubtela=[
+    'registrar-pagamento',
+    'nova-despesa',
+    'nova-receita'
+  ];
+
+  if(moduloAtual==='financeiro' && financeiroSubtela.includes(subtelaModulo)){
     subtelaModulo=null;
     const c=$('modulo-conteudo');
     c.innerHTML='<div class="carregando">Carregando...</div>';
@@ -138,6 +141,20 @@ async function voltarModuloOuHome(){
     }
     return;
   }
+
+  if(moduloAtual==='casa' && subtelaModulo==='nova-tarefa-casa'){
+    subtelaModulo=null;
+    const c=$('modulo-conteudo');
+    c.innerHTML='<div class="carregando">Carregando...</div>';
+    try{
+      await renderCasa(c);
+      rolarModuloTopo();
+    }catch(e){
+      c.innerHTML='<div class="erro">'+esc(e.message)+'</div>';
+    }
+    return;
+  }
+
   abrirHome();
 }
 
@@ -152,6 +169,7 @@ async function abrirModulo(modulo){
 
   try{
     if(modulo==='financeiro') await renderFinanceiro(c);
+    else if(modulo==='casa') await renderCasa(c);
     else if(modulo==='mercado') await renderMercado(c);
     else if(modulo==='relatorios') await renderRelatorios(c);
     else if(modulo==='calendario') await renderCalendario(c);
@@ -713,6 +731,174 @@ function itemMercado(x){
 }
 
 /* =========================================================
+   CASA
+========================================================= */
+
+async function renderCasa(c){
+  subtelaModulo=null;
+
+  const hoje=dataInputHoje();
+  const fim=dataInputOffset(14);
+
+  const r=await chamarApi({
+    action:'listarTarefasCasa',
+    token:sessao.token,
+    inicio:hoje,
+    fim
+  });
+  assertOk(r);
+
+  const tarefas=(r.dados||[]).sort((a,b)=>{
+    const da=new Date(a.dataPrevista||0).getTime();
+    const db=new Date(b.dataPrevista||0).getTime();
+    if(da!==db) return da-db;
+    return String(a.tarefa||'').localeCompare(String(b.tarefa||''),'pt-BR');
+  });
+
+  const hojeTarefas=tarefas.filter(x=>String(x.dataPrevista||'').slice(0,10)===hoje);
+  const proximas=tarefas.filter(x=>String(x.dataPrevista||'').slice(0,10)>hoje);
+  const pendentes=tarefas.filter(x=>String(x.status||'').toUpperCase()==='PENDENTE').length;
+
+  c.innerHTML=
+    `<div class="cabecalho-casa">
+      ${cabecalho('🏠','Casa','Rotinas, tarefas e limpeza')}
+      <button id="btn-nova-tarefa-casa" type="button" class="botao-nova-tarefa-casa">＋ Tarefa</button>
+    </div>`+
+    `<div class="cards-resumo cards-resumo-casa">
+      <div class="card-resumo"><small>Hoje</small><strong class="laranja">${hojeTarefas.length}</strong></div>
+      <div class="card-resumo"><small>Pendentes</small><strong class="amarelo">${pendentes}</strong></div>
+    </div>`+
+    `<div class="painel">
+      <div class="painel-titulo"><h3>📅 Hoje</h3><span>${hojeTarefas.length}</span></div>
+      <div class="lista-modulo">
+        ${hojeTarefas.length?hojeTarefas.map(x=>itemTarefaCasa(x,false)).join(''):'<div class="vazio">Nenhuma tarefa para hoje. 🎉</div>'}
+      </div>
+    </div>`+
+    `<div class="painel">
+      <div class="painel-titulo"><h3>🗓️ Próximos 14 dias</h3><span>${proximas.length}</span></div>
+      <div class="lista-modulo">
+        ${proximas.length?proximas.map(x=>itemTarefaCasa(x,true)).join(''):'<div class="vazio">Nenhuma tarefa próxima cadastrada.</div>'}
+      </div>
+    </div>`;
+
+  $('btn-nova-tarefa-casa').addEventListener('click',async()=>{
+    await renderNovaTarefaCasa(c);
+  });
+
+  c.querySelectorAll('[data-concluir-tarefa]').forEach(btn=>{
+    btn.addEventListener('click',async()=>{
+      const id=btn.dataset.concluirTarefa;
+      btn.disabled=true;
+      try{
+        const rr=await chamarApi({
+          action:'concluirTarefaCasa',
+          token:sessao.token,
+          id,
+          concluidaPor:sessao.usuario?.nome||''
+        });
+        assertOk(rr);
+        toast('Tarefa concluída! ✅');
+        await renderCasa(c);
+      }catch(e){
+        toast(e.message||'Não foi possível concluir a tarefa.');
+        btn.disabled=false;
+      }
+    });
+  });
+}
+
+function itemTarefaCasa(x,mostrarData){
+  const status=String(x.status||'PENDENTE').toUpperCase();
+  const classe=status.toLowerCase();
+  const data=mostrarData&&x.dataPrevista?`<span class="data-tarefa-casa">${dataBR(x.dataPrevista)}</span>`:'';
+  const botao=status==='PENDENTE'
+    ?`<button class="botao-concluir-tarefa" data-concluir-tarefa="${escAttr(x.id)}">✓ Concluir</button>`
+    :'';
+
+  return `<div class="item-lista item-tarefa-casa">
+    <div class="info-tarefa-casa">
+      <div class="descricao">${esc(x.tarefa||'Sem descrição')}</div>
+      <div class="meta">${esc(x.responsavel||'Ambos')}${data?' • '+data:''}</div>
+      ${x.observacao?`<div class="observacao-tarefa-casa">${esc(x.observacao)}</div>`:''}
+      <span class="badge badge-casa ${classe}">${esc(status.replaceAll('_',' '))}</span>
+    </div>
+    <div class="lado-tarefa-casa">${botao}</div>
+  </div>`;
+}
+
+async function renderNovaTarefaCasa(c){
+  subtelaModulo='nova-tarefa-casa';
+  rolarModuloTopo();
+
+  const nomeUsuario=sessao.usuario?.nome||'';
+  const responsavelPadrao=['Fernando','Letícia'].includes(nomeUsuario)?nomeUsuario:'Ambos';
+
+  c.innerHTML=
+    cabecalho('➕','Nova tarefa','Adicione uma tarefa manual para a casa')+
+    `<form id="form-nova-tarefa-casa" class="form-pagamento form-nova-tarefa-casa">
+      <label class="campo-pagamento">
+        <span>📝 Tarefa *</span>
+        <input id="casa-tarefa" type="text" maxlength="120" placeholder="Ex.: Lavar as roupas" required>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>📅 Data *</span>
+        <input id="casa-data" type="date" value="${dataInputHoje()}" required>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>👤 Responsável *</span>
+        <select id="casa-responsavel" required>
+          <option value="Fernando" ${responsavelPadrao==='Fernando'?'selected':''}>Fernando</option>
+          <option value="Letícia" ${responsavelPadrao==='Letícia'?'selected':''}>Letícia</option>
+          <option value="Ambos" ${responsavelPadrao==='Ambos'?'selected':''}>Ambos</option>
+        </select>
+      </label>
+
+      <label class="campo-pagamento">
+        <span>💬 Observação</span>
+        <textarea id="casa-observacao" maxlength="300" placeholder="Algum detalhe da tarefa?"></textarea>
+      </label>
+
+      <button id="btn-salvar-tarefa-casa" type="submit" class="botao-salvar-pagamento">✅ Inserir tarefa</button>
+      <button id="btn-cancelar-tarefa-casa" type="button" class="botao-cancelar-pagamento">Cancelar</button>
+    </form>`;
+
+  $('btn-cancelar-tarefa-casa').addEventListener('click',async()=>{
+    await renderCasa(c);
+  });
+
+  $('form-nova-tarefa-casa').addEventListener('submit',async e=>{
+    e.preventDefault();
+
+    const botao=$('btn-salvar-tarefa-casa');
+    botao.disabled=true;
+    botao.textContent='Salvando...';
+
+    try{
+      const r=await chamarApi({
+        action:'inserirTarefaCasa',
+        token:sessao.token,
+        dados:{
+          tarefa:$('casa-tarefa').value.trim(),
+          dataPrevista:$('casa-data').value,
+          responsavel:$('casa-responsavel').value,
+          observacao:$('casa-observacao').value.trim()
+        }
+      });
+      assertOk(r);
+      toast('Tarefa inserida com sucesso! 🏠');
+      await renderCasa(c);
+      rolarModuloTopo();
+    }catch(err){
+      toast(err.message||'Não foi possível inserir a tarefa.');
+      botao.disabled=false;
+      botao.textContent='✅ Inserir tarefa';
+    }
+  });
+}
+
+/* =========================================================
    RELATÓRIOS / CALENDÁRIO / COMPROVANTES / CONFIG
 ========================================================= */
 
@@ -768,6 +954,13 @@ function referenciaAtual(){
 
 function dataInputHoje(){
   const d=new Date();
+  const local=new Date(d.getTime()-d.getTimezoneOffset()*60000);
+  return local.toISOString().slice(0,10);
+}
+
+function dataInputOffset(dias){
+  const d=new Date();
+  d.setDate(d.getDate()+Number(dias||0));
   const local=new Date(d.getTime()-d.getTimezoneOffset()*60000);
   return local.toISOString().slice(0,10);
 }

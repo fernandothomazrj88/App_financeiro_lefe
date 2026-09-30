@@ -446,3 +446,148 @@ body {
     text-align:center;
   }
 }
+
+/* =========================================================
+   LEFE HOME V15 - MÓDULO CASA
+========================================================= */
+
+.cabecalho-casa{
+  position:relative;
+}
+
+.cabecalho-casa .cabecalho-modulo{
+  margin-bottom:10px;
+  padding-right:125px;
+}
+
+.botao-nova-tarefa-casa{
+  position:absolute;
+  top:2px;
+  right:0;
+  border:1px solid var(--laranja);
+  background:var(--laranja);
+  color:#fff;
+  border-radius:12px;
+  padding:10px 12px;
+  font-size:12px;
+  font-weight:700;
+  line-height:1.1;
+  box-shadow:0 4px 12px rgba(237,112,20,.16);
+}
+
+.botao-nova-tarefa-casa:active,
+.botao-concluir-tarefa:active{
+  transform:scale(.97);
+}
+
+.cards-resumo-casa{
+  margin-top:2px;
+}
+
+.item-tarefa-casa{
+  align-items:flex-start;
+}
+
+.info-tarefa-casa{
+  min-width:0;
+}
+
+.info-tarefa-casa .meta{
+  line-height:1.35;
+}
+
+.data-tarefa-casa{
+  color:#ddd;
+}
+
+.observacao-tarefa-casa{
+  color:#aaa;
+  font-size:11px;
+  line-height:1.35;
+  margin-top:6px;
+}
+
+.lado-tarefa-casa{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:7px;
+  min-width:82px;
+}
+
+.botao-concluir-tarefa{
+  border:1px solid var(--laranja);
+  background:var(--laranja);
+  color:#fff;
+  border-radius:10px;
+  padding:8px 9px;
+  font-size:11px;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+.botao-concluir-tarefa:disabled{
+  opacity:.6;
+}
+
+.badge-casa.pendente{
+  background:#946e00;
+  color:#fff;
+}
+
+.badge-casa.concluida{
+  background:#0b7c35;
+  color:#fff;
+}
+
+.badge-casa.cancelada{
+  background:#555;
+  color:#fff;
+}
+
+.form-nova-tarefa-casa{
+  margin-top:2px;
+}
+
+.form-nova-tarefa-casa select{
+  width:100%;
+  border:1px solid #5a5a5a;
+  background:#181818;
+  color:#fff;
+  border-radius:12px;
+  padding:13px;
+  outline:none;
+}
+
+.form-nova-tarefa-casa select:focus{
+  border-color:var(--laranja);
+}
+
+@media(max-width:380px){
+  .cabecalho-casa .cabecalho-modulo{
+    padding-right:0;
+    padding-bottom:50px;
+  }
+
+  .botao-nova-tarefa-casa{
+    top:auto;
+    bottom:0;
+    left:0;
+    right:0;
+    width:100%;
+  }
+
+  .item-tarefa-casa{
+    grid-template-columns:1fr;
+  }
+
+  .lado-tarefa-casa{
+    width:100%;
+    min-width:0;
+    align-items:stretch;
+  }
+
+  .botao-concluir-tarefa{
+    width:100%;
+  }
+}

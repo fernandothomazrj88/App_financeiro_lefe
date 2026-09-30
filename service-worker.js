@@ -3,8 +3,8 @@ const CACHE_NAME='lefe-home-v15';
 const ARQUIVOS=[
   './',
   './index.html',
-  './style.css?v=14',
-  './app.js?v=14',
+  './style.css?v=15',
+  './app.js?v=15',
   './manifest.json',
   './assets/icon-192.png',
   './assets/icon-512.png',
