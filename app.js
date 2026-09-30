@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded',iniciarApp);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=16');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=18');
       await reg.update();
       console.log('LeFe Home PWA v16 ativo.',reg.scope);
     }catch(err){
@@ -1071,17 +1071,18 @@ function formatarStatusCompra(status){
 
 async function renderNovaCompraPlanejada(c){
   subtelaModulo='nova-compra-planejada';
+  let ultimoLinkBusca='';
   rolarModuloTopo();
 
   const categorias=['Casa','Vestuário','Cama, mesa e banho','Cozinha','Eletrônicos','Ferramentas','Outros'];
 
   c.innerHTML=
     cabecalho('🛍️','Adicionar compra','Cole o link e tente buscar os dados automaticamente')+
-    `<form id="form-nova-compra-planejada" class="form-pagamento form-nova-compra-planejada">
+    `<form id="form-nova-compra-planejada" class="form-pagamento form-nova-compra-planejada" autocomplete="off">
       <label class="campo-pagamento">
         <span>🔗 Link do produto *</span>
         <div class="campo-link-produto">
-          <input id="compra-link" type="url" maxlength="2000" placeholder="https://loja.com/produto..." required>
+          <input id="compra-link" type="url" maxlength="2000" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://loja.com/produto..." required>
           <button id="btn-buscar-produto" type="button" class="botao-buscar-produto">Buscar</button>
         </div>
         <small class="ajuda-campo">O LeFe Home tenta encontrar nome, preço, loja e imagem.</small>
@@ -1091,17 +1092,17 @@ async function renderNovaCompraPlanejada(c){
 
       <label class="campo-pagamento">
         <span>📝 Nome do produto *</span>
-        <input id="compra-nome" type="text" maxlength="180" placeholder="Ex.: Jogo de cama casal" required>
+        <input id="compra-nome" type="text" maxlength="180" autocomplete="off" placeholder="Ex.: Jogo de cama casal" required>
       </label>
 
       <label class="campo-pagamento">
         <span>💰 Preço</span>
-        <input id="compra-preco" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00">
+        <input id="compra-preco" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" placeholder="0,00">
       </label>
 
       <label class="campo-pagamento">
         <span>🏪 Loja</span>
-        <input id="compra-loja" type="text" maxlength="120" placeholder="Ex.: Mercado Livre">
+        <input id="compra-loja" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: Mercado Livre">
       </label>
 
       <label class="campo-pagamento">
@@ -1113,7 +1114,7 @@ async function renderNovaCompraPlanejada(c){
 
       <label class="campo-pagamento">
         <span>💬 Descrição</span>
-        <textarea id="compra-descricao" maxlength="500" rows="3" placeholder="Descrição encontrada no produto ou escrita por vocês."></textarea>
+        <textarea id="compra-descricao" maxlength="500" autocomplete="off" rows="3" placeholder="Descrição encontrada no produto ou escrita por vocês."></textarea>
       </label>
 
       <label class="campo-pagamento">
@@ -1125,7 +1126,7 @@ async function renderNovaCompraPlanejada(c){
 
       <label class="campo-pagamento">
         <span>💬 Observação</span>
-        <textarea id="compra-observacao" maxlength="500" rows="3" placeholder="Ex.: esperar promoção ou comparar com outra loja."></textarea>
+        <textarea id="compra-observacao" maxlength="500" autocomplete="off" rows="3" placeholder="Ex.: esperar promoção ou comparar com outra loja."></textarea>
       </label>
 
       <input id="compra-imagem" type="hidden">
@@ -1136,9 +1137,30 @@ async function renderNovaCompraPlanejada(c){
 
   $('btn-cancelar-compra-planejada').addEventListener('click',async()=>renderComprasPlanejadas(c));
 
+  $('compra-link').addEventListener('input',()=>{
+    const linkAtual=$('compra-link').value.trim();
+    if(ultimoLinkBusca && linkAtual!==ultimoLinkBusca){
+      $('compra-nome').value='';
+      $('compra-preco').value='';
+      $('compra-loja').value='';
+      $('compra-descricao').value='';
+      $('compra-imagem').value='';
+      const aviso=$('aviso-busca-produto');
+      aviso.classList.add('escondido');
+      ultimoLinkBusca='';
+    }
+  });
+
   $('btn-buscar-produto').addEventListener('click',async()=>{
     const link=$('compra-link').value.trim();
     if(!link) return toast('Cole primeiro o link do produto.');
+
+    // Cada busca começa limpa para nunca reutilizar os dados do item anterior.
+    $('compra-nome').value='';
+    $('compra-preco').value='';
+    $('compra-loja').value='';
+    $('compra-descricao').value='';
+    $('compra-imagem').value='';
 
     const btn=$('btn-buscar-produto');
     const aviso=$('aviso-busca-produto');
@@ -1156,8 +1178,10 @@ async function renderNovaCompraPlanejada(c){
       if(d.loja) $('compra-loja').value=d.loja;
       if(d.descricao) $('compra-descricao').value=d.descricao;
       if(d.imagemUrl) $('compra-imagem').value=d.imagemUrl;
+      ultimoLinkBusca=link;
       aviso.textContent=r.aviso||'✅ Dados encontrados. Confira antes de salvar.';
     }catch(e){
+      ultimoLinkBusca='';
       aviso.textContent='⚠️ Não foi possível buscar automaticamente. Você pode preencher os campos manualmente.';
       toast(e.message||'Não foi possível ler esse link.');
     }finally{
@@ -1368,7 +1392,8 @@ async function chamarApi(dados){
   const r=await fetch(API_URL,{
     method:'POST',
     headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body:JSON.stringify(dados)
+    body:JSON.stringify(dados),
+    cache:'no-store'
   });
 
   if(!r.ok) throw new Error('Erro de comunicação com o servidor.');
