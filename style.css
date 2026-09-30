@@ -874,3 +874,69 @@ body {
     width:100%;
   }
 }
+
+
+/* =========================================================
+   LEFE HOME V17 - ROLAGEM ROBUSTA NO CELULAR / PWA
+   Usa a própria página como área de rolagem.
+   Evita travamento de scroll em telas de módulos.
+========================================================= */
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+
+body {
+  max-width: 520px;
+  margin: 0 auto;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tela {
+  width: 100%;
+  min-height: 100dvh;
+  height: auto;
+  overflow: visible;
+  touch-action: pan-y;
+}
+
+#tela-modulo {
+  position: relative;
+  width: 100%;
+  min-height: 100dvh;
+  height: auto;
+  overflow: visible;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: auto;
+  overscroll-behavior-y: auto;
+}
+
+#tela-modulo .conteudo-modulo {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  padding-bottom: calc(110px + env(safe-area-inset-bottom));
+}
+
+#tela-modulo .painel,
+#tela-modulo .lista-modulo,
+#tela-modulo .lista-compras-planejadas {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+/* Impede que elementos interativos bloqueiem o gesto vertical. */
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
