@@ -1027,3 +1027,184 @@ textarea {
     height:64px;
   }
 }
+
+/* =========================================================
+   LEFE HOME V20 - GERENCIAMENTO DE COMPRAS PLANEJADAS
+========================================================= */
+
+.painel-categorias-compras{
+  margin-top:10px;
+  padding:12px;
+}
+
+.painel-categorias-compras .painel-titulo{
+  margin-bottom:9px;
+}
+
+.categorias-compras-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:7px;
+}
+
+.categoria-compra-resumo{
+  background:#171717;
+  border:1px solid #303030;
+  border-radius:11px;
+  padding:9px;
+  min-width:0;
+}
+
+.categoria-compra-resumo strong{
+  display:block;
+  font-size:11px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.categoria-compra-resumo span{
+  display:block;
+  color:#999;
+  font-size:9px;
+  margin-top:3px;
+}
+
+.categoria-compra-resumo b{
+  display:block;
+  color:var(--laranja);
+  font-size:12px;
+  margin-top:4px;
+}
+
+.controles-compras-planejadas{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:7px;
+  margin:10px 0 8px;
+}
+
+.campo-busca-compras{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  min-width:0;
+  background:#171717;
+  border:1px solid #3b3b3b;
+  border-radius:11px;
+  padding:0 10px;
+}
+
+.campo-busca-compras:focus-within{
+  border-color:var(--laranja);
+}
+
+.campo-busca-compras span{
+  font-size:13px;
+  flex:none;
+}
+
+.campo-busca-compras input{
+  width:100%;
+  min-width:0;
+  margin:0 !important;
+  border:0 !important;
+  background:transparent !important;
+  padding:10px 0 !important;
+  outline:none;
+  color:#fff;
+}
+
+#ordem-compras-planejadas{
+  min-width:145px;
+  border:1px solid #3b3b3b;
+  background:#171717;
+  color:#fff;
+  border-radius:11px;
+  padding:10px 9px;
+  outline:none;
+  font-size:10px;
+}
+
+#ordem-compras-planejadas:focus{
+  border-color:var(--laranja);
+}
+
+.acoes-compra-planejada{
+  flex-wrap:wrap;
+}
+
+.botao-editar-compra,
+.botao-excluir-compra{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:10px;
+  padding:7px 10px;
+  font-size:11px;
+  font-weight:700;
+  cursor:pointer;
+}
+
+.botao-editar-compra{
+  border:1px solid #666;
+  background:#1b1b1b;
+  color:#fff;
+}
+
+.botao-excluir-compra{
+  width:34px;
+  padding:7px 0;
+  border:1px solid #713030;
+  background:#251515;
+  color:#ff8f8f;
+}
+
+.botao-editar-compra:active,
+.botao-excluir-compra:active{
+  transform:scale(.97);
+}
+
+.botao-editar-compra:disabled,
+.botao-excluir-compra:disabled{
+  opacity:.55;
+}
+
+.identificador-edicao{
+  color:#999;
+  font-size:11px;
+  background:#171717;
+  border:1px solid #333;
+  border-radius:10px;
+  padding:9px 10px;
+  margin-bottom:10px;
+}
+
+.identificador-edicao strong{
+  color:var(--laranja);
+}
+
+@media(max-width:420px){
+  .categorias-compras-grid{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .controles-compras-planejadas{
+    grid-template-columns:1fr;
+  }
+
+  #ordem-compras-planejadas{
+    width:100%;
+  }
+}
+
+@media(max-width:380px){
+  .categorias-compras-grid{
+    grid-template-columns:1fr;
+  }
+
+  .acoes-compra-planejada .botao-link-compra,
+  .acoes-compra-planejada .botao-editar-compra{
+    flex:1;
+  }
+}

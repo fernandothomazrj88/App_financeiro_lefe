@@ -13,9 +13,9 @@ document.addEventListener('DOMContentLoaded',iniciarApp);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=18');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=20');
       await reg.update();
-      console.log('LeFe Home PWA v16 ativo.',reg.scope);
+      console.log('LeFe Home PWA v20 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
@@ -916,7 +916,7 @@ async function renderNovaTarefaCasa(c){
    COMPRAS PLANEJADAS
 ========================================================= */
 
-async function renderComprasPlanejadas(c, filtroInicial='TODAS'){
+async function renderComprasPlanejadas(c, filtroInicial='TODAS', buscaInicial='', ordemInicial='RECENTES'){
   subtelaModulo=null;
 
   const r=await chamarApi({
@@ -926,7 +926,7 @@ async function renderComprasPlanejadas(c, filtroInicial='TODAS'){
   assertOk(r);
 
   const itens=r.dados||[];
-  renderListaComprasPlanejadas(c,itens,filtroInicial);
+  renderListaComprasPlanejadas(c,itens,filtroInicial,buscaInicial,ordemInicial);
 }
 
 function resumoComprasPlanejadas(itens){
@@ -936,11 +936,52 @@ function resumoComprasPlanejadas(itens){
   return {ativas,compradas,total};
 }
 
-function renderListaComprasPlanejadas(c,itens,filtro='TODAS'){
-  const resumo=resumoComprasPlanejadas(itens);
-  const itensFiltrados=filtro==='TODAS'
-    ? itens
+function filtrarOrdenarComprasPlanejadas(itens,filtro='TODAS',busca='',ordem='RECENTES'){
+  const termo=String(busca||'').trim().toLowerCase();
+  let lista=filtro==='TODAS'
+    ? [...itens]
     : itens.filter(x=>String(x.status||'').toUpperCase()===filtro);
+
+  if(termo){
+    lista=lista.filter(x=>[
+      x.nome,x.loja,x.categoria,x.descricao,x.observacao
+    ].some(v=>String(v||'').toLowerCase().includes(termo)));
+  }
+
+  const statusOrdem={DESEJADA:1,PESQUISANDO:2,AGUARDANDO:3,COMPRADA:4,DESISTIMOS:5};
+  lista.sort((a,b)=>{
+    if(ordem==='MENOR_PRECO') return Number(a.preco||0)-Number(b.preco||0);
+    if(ordem==='MAIOR_PRECO') return Number(b.preco||0)-Number(a.preco||0);
+    if(ordem==='NOME_AZ') return String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR');
+    if(ordem==='NOME_ZA') return String(b.nome||'').localeCompare(String(a.nome||''),'pt-BR');
+    if(ordem==='STATUS') return (statusOrdem[String(a.status||'').toUpperCase()]||99)-(statusOrdem[String(b.status||'').toUpperCase()]||99);
+
+    const da=new Date(a.criadoEm||a.atualizadoEm||0).getTime()||0;
+    const db=new Date(b.criadoEm||b.atualizadoEm||0).getTime()||0;
+    return db-da;
+  });
+
+  return lista;
+}
+
+function resumoCategoriasCompras(itens){
+  const mapa={};
+  itens
+    .filter(x=>!['COMPRADA','DESISTIMOS'].includes(String(x.status||'').toUpperCase()))
+    .forEach(x=>{
+      const cat=String(x.categoria||'Outros');
+      if(!mapa[cat]) mapa[cat]={categoria:cat,quantidade:0,total:0};
+      mapa[cat].quantidade++;
+      mapa[cat].total+=Number(x.preco||0);
+    });
+
+  return Object.values(mapa).sort((a,b)=>b.total-a.total);
+}
+
+function renderListaComprasPlanejadas(c,itens,filtro='TODAS',busca='',ordem='RECENTES'){
+  const resumo=resumoComprasPlanejadas(itens);
+  const itensFiltrados=filtrarOrdenarComprasPlanejadas(itens,filtro,busca,ordem);
+  const categorias=resumoCategoriasCompras(itens);
 
   c.innerHTML=
     `<div class="cabecalho-compras-planejadas">
@@ -951,6 +992,26 @@ function renderListaComprasPlanejadas(c,itens,filtro='TODAS'){
       <div class="card-resumo"><small>Planejadas</small><strong class="laranja">${resumo.ativas.length}</strong></div>
       <div class="card-resumo"><small>Total planejado</small><strong class="laranja">${moeda(resumo.total)}</strong></div>
       <div class="card-resumo"><small>Compradas</small><strong class="verde">${resumo.compradas.length}</strong></div>
+    </div>`+
+    `<div class="painel painel-categorias-compras">
+      <div class="painel-titulo"><h3>💰 Total por categoria</h3><span>ativas</span></div>
+      <div class="categorias-compras-grid">
+        ${categorias.length?categorias.map(x=>`<div class="categoria-compra-resumo"><strong>${esc(x.categoria)}</strong><span>${x.quantidade} ${x.quantidade===1?'item':'itens'}</span><b>${moeda(x.total)}</b></div>`).join(''):'<div class="vazio">Nenhuma compra planejada ativa.</div>'}
+      </div>
+    </div>`+
+    `<div class="controles-compras-planejadas">
+      <label class="campo-busca-compras">
+        <span>🔎</span>
+        <input id="busca-compras-planejadas" type="search" value="${escAttr(busca)}" placeholder="Buscar produto, loja ou categoria..." autocomplete="off">
+      </label>
+      <select id="ordem-compras-planejadas" aria-label="Ordenar compras">
+        <option value="RECENTES" ${ordem==='RECENTES'?'selected':''}>Mais recentes</option>
+        <option value="MENOR_PRECO" ${ordem==='MENOR_PRECO'?'selected':''}>Menor preço</option>
+        <option value="MAIOR_PRECO" ${ordem==='MAIOR_PRECO'?'selected':''}>Maior preço</option>
+        <option value="NOME_AZ" ${ordem==='NOME_AZ'?'selected':''}>Nome A–Z</option>
+        <option value="NOME_ZA" ${ordem==='NOME_ZA'?'selected':''}>Nome Z–A</option>
+        <option value="STATUS" ${ordem==='STATUS'?'selected':''}>Por status</option>
+      </select>
     </div>`+
     `<div class="barra-filtros-compras">
       ${chipCompra('TODAS','Todas',filtro)}
@@ -965,18 +1026,69 @@ function renderListaComprasPlanejadas(c,itens,filtro='TODAS'){
       <span>${itensFiltrados.length} ${itensFiltrados.length===1?'item':'itens'}</span>
     </div>`+
     `<div id="lista-compras-planejadas" class="lista-compras-planejadas">
-      ${itensFiltrados.length?itensFiltrados.map(itemCompraPlanejada).join(''):'<div class="painel vazio">Nenhum item nesta categoria.<br>Adicione uma compra ou altere o filtro. 🛍️</div>'}
+      ${itensFiltrados.length?itensFiltrados.map(itemCompraPlanejada).join(''):'<div class="painel vazio">Nenhum item encontrado.<br>Adicione uma compra ou altere a busca/filtro. 🛍️</div>'}
     </div>`;
 
   $('btn-nova-compra-planejada').addEventListener('click',async()=>{
     await renderNovaCompraPlanejada(c);
   });
 
-  c.querySelectorAll('[data-filtro-compra]').forEach(btn=>{
-    btn.addEventListener('click',()=>renderComprasPlanejadasFiltro(c,btn.dataset.filtroCompra));
+  const buscaEl=$('busca-compras-planejadas');
+  let timerBusca;
+  buscaEl.addEventListener('input',()=>{
+    clearTimeout(timerBusca);
+    const valor=buscaEl.value;
+    const pos=buscaEl.selectionStart ?? valor.length;
+    timerBusca=setTimeout(()=>{
+      const ordemAtual=$('ordem-compras-planejadas')?.value||ordem;
+      renderListaComprasPlanejadas(c,itens,filtro,valor,ordemAtual);
+      const novoCampo=$('busca-compras-planejadas');
+      if(novoCampo){
+        novoCampo.focus();
+        try{novoCampo.setSelectionRange(pos,pos);}catch(e){}
+      }
+    },180);
   });
 
-  ligarStatusComprasPlanejadas(c,filtro);
+  $('ordem-compras-planejadas').addEventListener('change',()=>{
+    renderListaComprasPlanejadas(c,itens,filtro,buscaEl.value,$('ordem-compras-planejadas').value);
+  });
+
+  c.querySelectorAll('[data-filtro-compra]').forEach(btn=>{
+    btn.addEventListener('click',()=>renderListaComprasPlanejadas(c,itens,btn.dataset.filtroCompra,buscaEl.value,$('ordem-compras-planejadas').value));
+  });
+
+  ligarStatusComprasPlanejadas(c,filtro,busca,ordem);
+
+  c.querySelectorAll('[data-editar-compra]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const item=itens.find(x=>String(x.id)===String(btn.dataset.editarCompra));
+      if(item) renderEditarCompraPlanejada(c,item);
+    });
+  });
+
+  c.querySelectorAll('[data-excluir-compra]').forEach(btn=>{
+    btn.addEventListener('click',async()=>{
+      const item=itens.find(x=>String(x.id)===String(btn.dataset.excluirCompra));
+      if(!item) return;
+      const confirma=window.confirm(`Excluir "${item.nome||'esta compra'}" da lista?\n\nEssa ação não pode ser desfeita.`);
+      if(!confirma) return;
+      btn.disabled=true;
+      try{
+        const rr=await chamarApi({
+          action:'excluirCompraPlanejada',
+          token:sessao.token,
+          id:item.id
+        });
+        assertOk(rr);
+        toast('Compra excluída. 🗑️');
+        await renderComprasPlanejadas(c,filtro,busca,ordem);
+      }catch(e){
+        toast(e.message||'Não foi possível excluir.');
+        btn.disabled=false;
+      }
+    });
+  });
 }
 
 function rotuloFiltroCompra(filtro){
@@ -990,7 +1102,7 @@ function rotuloFiltroCompra(filtro){
   })[filtro]||'Compras';
 }
 
-function ligarStatusComprasPlanejadas(c,filtro){
+function ligarStatusComprasPlanejadas(c,filtro,busca='',ordem='RECENTES'){
   c.querySelectorAll('[data-status-compra]').forEach(sel=>{
     sel.addEventListener('change',async()=>{
       sel.disabled=true;
@@ -1003,7 +1115,7 @@ function ligarStatusComprasPlanejadas(c,filtro){
         });
         assertOk(rr);
         toast('Status atualizado! ✅');
-        await renderComprasPlanejadasFiltro(c,filtro);
+        await renderComprasPlanejadas(c,filtro,busca,ordem);
       }catch(e){
         toast(e.message||'Não foi possível atualizar.');
         sel.disabled=false;
@@ -1014,15 +1126,6 @@ function ligarStatusComprasPlanejadas(c,filtro){
 
 function chipCompra(valor,label,atual){
   return `<button type="button" class="chip chip-compra ${valor===atual?'ativo':''}" data-filtro-compra="${escAttr(valor)}">${esc(label)}</button>`;
-}
-
-async function renderComprasPlanejadasFiltro(c,filtro){
-  const r=await chamarApi({
-    action:'listarComprasPlanejadas',
-    token:sessao.token
-  });
-  assertOk(r);
-  renderListaComprasPlanejadas(c,r.dados||[],filtro);
 }
 
 function itemCompraPlanejada(x){
@@ -1055,6 +1158,8 @@ function itemCompraPlanejada(x){
       ${x.observacao?`<div class="observacao-compra-planejada">💬 ${esc(x.observacao)}</div>`:''}
       <div class="acoes-compra-planejada">
         <a class="botao-link-compra" href="${escAttr(x.link)}" target="_blank" rel="noopener noreferrer">🔗 Ver produto</a>
+        <button type="button" class="botao-editar-compra" data-editar-compra="${escAttr(x.id)}">✏️ Editar</button>
+        <button type="button" class="botao-excluir-compra" data-excluir-compra="${escAttr(x.id)}">🗑️</button>
       </div>
     </div>
   </article>`;
@@ -1102,85 +1207,74 @@ async function renderNovaCompraPlanejada(c){
 
       <div id="aviso-busca-produto" class="aviso-busca-produto escondido"></div>
 
-      <label class="campo-pagamento">
-        <span>📝 Nome do produto *</span>
-        <input id="compra-nome" type="text" maxlength="180" autocomplete="off" placeholder="Ex.: Jogo de cama casal" required>
-      </label>
-
-      <label class="campo-pagamento">
-        <span>💰 Preço</span>
-        <input id="compra-preco" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" placeholder="0,00">
-      </label>
-
-      <label class="campo-pagamento">
-        <span>🏪 Loja</span>
-        <input id="compra-loja" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: Mercado Livre">
-      </label>
-
-      <label class="campo-pagamento">
-        <span>🏷️ Categoria</span>
-        <select id="compra-categoria">
-          ${categorias.map(x=>`<option value="${escAttr(x)}">${esc(x)}</option>`).join('')}
-        </select>
-      </label>
-
-      <label class="campo-pagamento">
-        <span>💬 Descrição</span>
-        <textarea id="compra-descricao" maxlength="500" autocomplete="off" rows="3" placeholder="Descrição encontrada no produto ou escrita por vocês."></textarea>
-      </label>
-
-      <label class="campo-pagamento">
-        <span>📌 Status</span>
-        <select id="compra-status">
-          ${statusOptionsCompra('DESEJADA')}
-        </select>
-      </label>
-
-      <label class="campo-pagamento">
-        <span>💬 Observação</span>
-        <textarea id="compra-observacao" maxlength="500" autocomplete="off" rows="3" placeholder="Ex.: esperar promoção ou comparar com outra loja."></textarea>
-      </label>
-
+      <label class="campo-pagamento"><span>📝 Nome do produto *</span><input id="compra-nome" type="text" maxlength="180" autocomplete="off" placeholder="Ex.: Jogo de cama casal" required></label>
+      <label class="campo-pagamento"><span>💰 Preço</span><input id="compra-preco" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" placeholder="0,00"></label>
+      <label class="campo-pagamento"><span>🏪 Loja</span><input id="compra-loja" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: Mercado Livre"></label>
+      <label class="campo-pagamento"><span>🏷️ Categoria</span><select id="compra-categoria">${categorias.map(x=>`<option value="${escAttr(x)}">${esc(x)}</option>`).join('')}</select></label>
+      <label class="campo-pagamento"><span>💬 Descrição</span><textarea id="compra-descricao" maxlength="500" autocomplete="off" rows="3" placeholder="Descrição encontrada no produto ou escrita por vocês."></textarea></label>
+      <label class="campo-pagamento"><span>📌 Status</span><select id="compra-status">${statusOptionsCompra('DESEJADA')}</select></label>
+      <label class="campo-pagamento"><span>💬 Observação</span><textarea id="compra-observacao" maxlength="500" autocomplete="off" rows="3" placeholder="Ex.: esperar promoção ou comparar com outra loja."></textarea></label>
       <input id="compra-imagem" type="hidden">
-
       <button id="btn-salvar-compra-planejada" type="submit" class="botao-salvar-pagamento">🛍️ Adicionar à lista</button>
       <button id="btn-cancelar-compra-planejada" type="button" class="botao-cancelar-pagamento">Cancelar</button>
     </form>`;
 
   $('btn-cancelar-compra-planejada').addEventListener('click',async()=>renderComprasPlanejadas(c));
+  ligarBuscaProdutoCompraPlanejada({modo:'novo'});
 
-  $('compra-link').addEventListener('input',()=>{
-    const linkAtual=$('compra-link').value.trim();
-    if(ultimoLinkBusca && linkAtual!==ultimoLinkBusca){
+  $('form-nova-compra-planejada').addEventListener('submit',async e=>{
+    e.preventDefault();
+    const btn=$('btn-salvar-compra-planejada');
+    const link=$('compra-link').value.trim();
+    const nome=$('compra-nome').value.trim();
+    const preco=Number($('compra-preco').value||0);
+    if(!link) return toast('Informe o link do produto.');
+    if(!nome) return toast('Informe o nome do produto.');
+    btn.disabled=true; btn.textContent='Salvando...';
+    try{
+      const r=await chamarApi({action:'inserirCompraPlanejada',token:sessao.token,dados:{link,nome,descricao:$('compra-descricao').value.trim(),preco,loja:$('compra-loja').value.trim(),categoria:$('compra-categoria').value,status:$('compra-status').value,imagemUrl:$('compra-imagem').value.trim(),observacao:$('compra-observacao').value.trim()}});
+      assertOk(r);
+      toast('Compra adicionada à lista! 🛍️');
+      await renderComprasPlanejadas(c);
+      rolarModuloTopo();
+    }catch(err){
+      toast(err.message||'Não foi possível adicionar a compra.');
+      btn.disabled=false; btn.textContent='🛍️ Adicionar à lista';
+    }
+  });
+}
+
+function ligarBuscaProdutoCompraPlanejada({modo='novo'}={}){
+  let ultimoLinkBusca=$('compra-link')?.value.trim()||'';
+  const linkInput=$('compra-link');
+  const aviso=$('aviso-busca-produto');
+  const btn=$('btn-buscar-produto');
+  if(!linkInput||!btn) return;
+
+  linkInput.addEventListener('input',()=>{
+    const atual=linkInput.value.trim();
+    if(ultimoLinkBusca && atual!==ultimoLinkBusca){
       $('compra-nome').value='';
       $('compra-preco').value='';
       $('compra-loja').value='';
       $('compra-descricao').value='';
       $('compra-imagem').value='';
-      const aviso=$('aviso-busca-produto');
       aviso.classList.add('escondido');
       ultimoLinkBusca='';
     }
   });
 
-  $('btn-buscar-produto').addEventListener('click',async()=>{
-    const link=$('compra-link').value.trim();
+  btn.addEventListener('click',async()=>{
+    const link=linkInput.value.trim();
     if(!link) return toast('Cole primeiro o link do produto.');
 
-    // Cada busca começa limpa para nunca reutilizar os dados do item anterior.
     $('compra-nome').value='';
     $('compra-preco').value='';
     $('compra-loja').value='';
     $('compra-descricao').value='';
     $('compra-imagem').value='';
-
-    const btn=$('btn-buscar-produto');
-    const aviso=$('aviso-busca-produto');
-    btn.disabled=true;
-    btn.textContent='Buscando...';
-    aviso.classList.remove('escondido');
-    aviso.textContent='🔎 Lendo os dados da página...';
-
+    btn.disabled=true; btn.textContent='Buscando...';
+    aviso.classList.remove('escondido'); aviso.textContent='🔎 Lendo os dados da página...';
     try{
       const r=await chamarApi({action:'buscarProdutoLink',token:sessao.token,link});
       assertOk(r);
@@ -1197,49 +1291,52 @@ async function renderNovaCompraPlanejada(c){
       aviso.textContent='⚠️ Não foi possível buscar automaticamente. Você pode preencher os campos manualmente.';
       toast(e.message||'Não foi possível ler esse link.');
     }finally{
-      btn.disabled=false;
-      btn.textContent='Buscar';
+      btn.disabled=false; btn.textContent='Buscar';
     }
   });
+}
 
-  $('form-nova-compra-planejada').addEventListener('submit',async e=>{
+async function renderEditarCompraPlanejada(c,item){
+  subtelaModulo='editar-compra-planejada';
+  rolarModuloTopo();
+  const categorias=['Casa','Vestuário','Cama, mesa e banho','Cozinha','Eletrônicos','Ferramentas','Outros'];
+
+  c.innerHTML=
+    cabecalho('✏️','Editar compra','Atualize os dados desta compra planejada')+
+    `<form id="form-editar-compra-planejada" class="form-pagamento form-nova-compra-planejada" autocomplete="off">
+      <div class="identificador-edicao">ID: <strong>${esc(item.id)}</strong></div>
+      <label class="campo-pagamento"><span>🔗 Link do produto *</span><div class="campo-link-produto"><input id="compra-link" type="url" maxlength="2000" value="${escAttr(item.link||'')}" autocomplete="off" autocapitalize="none" spellcheck="false" required><button id="btn-buscar-produto" type="button" class="botao-buscar-produto">Buscar</button></div></label>
+      <div id="aviso-busca-produto" class="aviso-busca-produto escondido"></div>
+      <label class="campo-pagamento"><span>📝 Nome do produto *</span><input id="compra-nome" type="text" maxlength="180" value="${escAttr(item.nome||'')}" required></label>
+      <label class="campo-pagamento"><span>💰 Preço</span><input id="compra-preco" type="number" min="0" step="0.01" inputmode="decimal" value="${Number(item.preco||0)>0?Number(item.preco).toFixed(2):''}"></label>
+      <label class="campo-pagamento"><span>🏪 Loja</span><input id="compra-loja" type="text" maxlength="120" value="${escAttr(item.loja||'')}"></label>
+      <label class="campo-pagamento"><span>🏷️ Categoria</span><select id="compra-categoria">${categorias.map(x=>`<option value="${escAttr(x)}" ${x===item.categoria?'selected':''}>${esc(x)}</option>`).join('')}</select></label>
+      <label class="campo-pagamento"><span>💬 Descrição</span><textarea id="compra-descricao" maxlength="500" rows="3">${esc(item.descricao||'')}</textarea></label>
+      <label class="campo-pagamento"><span>📌 Status</span><select id="compra-status">${statusOptionsCompra(String(item.status||'DESEJADA').toUpperCase())}</select></label>
+      <label class="campo-pagamento"><span>💬 Observação</span><textarea id="compra-observacao" maxlength="500" rows="3">${esc(item.observacao||'')}</textarea></label>
+      <input id="compra-imagem" type="hidden" value="${escAttr(item.imagemUrl||'')}">
+      <button id="btn-salvar-compra-planejada" type="submit" class="botao-salvar-pagamento">💾 Salvar alterações</button>
+      <button id="btn-cancelar-compra-planejada" type="button" class="botao-cancelar-pagamento">Cancelar</button>
+    </form>`;
+
+  $('btn-cancelar-compra-planejada').addEventListener('click',async()=>renderComprasPlanejadas(c));
+  ligarBuscaProdutoCompraPlanejada({modo:'editar'});
+
+  $('form-editar-compra-planejada').addEventListener('submit',async e=>{
     e.preventDefault();
-
     const btn=$('btn-salvar-compra-planejada');
-    const link=$('compra-link').value.trim();
     const nome=$('compra-nome').value.trim();
-    const preco=Number($('compra-preco').value||0);
-
-    if(!link) return toast('Informe o link do produto.');
     if(!nome) return toast('Informe o nome do produto.');
-
-    btn.disabled=true;
-    btn.textContent='Salvando...';
-
+    btn.disabled=true; btn.textContent='Salvando...';
     try{
-      const r=await chamarApi({
-        action:'inserirCompraPlanejada',
-        token:sessao.token,
-        dados:{
-          link,
-          nome,
-          descricao:$('compra-descricao').value.trim(),
-          preco,
-          loja:$('compra-loja').value.trim(),
-          categoria:$('compra-categoria').value,
-          status:$('compra-status').value,
-          imagemUrl:$('compra-imagem').value.trim(),
-          observacao:$('compra-observacao').value.trim()
-        }
-      });
+      const r=await chamarApi({action:'atualizarCompraPlanejada',token:sessao.token,id:item.id,dados:{link:$('compra-link').value.trim(),nome,descricao:$('compra-descricao').value.trim(),preco:Number($('compra-preco').value||0),loja:$('compra-loja').value.trim(),categoria:$('compra-categoria').value,status:$('compra-status').value,imagemUrl:$('compra-imagem').value.trim(),observacao:$('compra-observacao').value.trim()}});
       assertOk(r);
-      toast('Compra adicionada à lista! 🛍️');
+      toast('Compra atualizada! ✅');
       await renderComprasPlanejadas(c);
       rolarModuloTopo();
     }catch(err){
-      toast(err.message||'Não foi possível adicionar a compra.');
-      btn.disabled=false;
-      btn.textContent='🛍️ Adicionar à lista';
+      toast(err.message||'Não foi possível atualizar a compra.');
+      btn.disabled=false; btn.textContent='💾 Salvar alterações';
     }
   });
 }
