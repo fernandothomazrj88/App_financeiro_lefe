@@ -916,7 +916,7 @@ async function renderNovaTarefaCasa(c){
    COMPRAS PLANEJADAS
 ========================================================= */
 
-async function renderComprasPlanejadas(c){
+async function renderComprasPlanejadas(c, filtroInicial='TODAS'){
   subtelaModulo=null;
 
   const r=await chamarApi({
@@ -926,10 +926,21 @@ async function renderComprasPlanejadas(c){
   assertOk(r);
 
   const itens=r.dados||[];
-  const planejadas=itens.filter(x=>!['COMPRADA','DESISTIMOS'].includes(String(x.status||'').toUpperCase()));
-  const totalPlanejado=planejadas.reduce((s,x)=>s+Number(x.preco||0),0);
+  renderListaComprasPlanejadas(c,itens,filtroInicial);
+}
 
-  const filtroAtual='TODAS';
+function resumoComprasPlanejadas(itens){
+  const ativas=itens.filter(x=>!['COMPRADA','DESISTIMOS'].includes(String(x.status||'').toUpperCase()));
+  const compradas=itens.filter(x=>String(x.status||'').toUpperCase()==='COMPRADA');
+  const total=ativas.reduce((s,x)=>s+Number(x.preco||0),0);
+  return {ativas,compradas,total};
+}
+
+function renderListaComprasPlanejadas(c,itens,filtro='TODAS'){
+  const resumo=resumoComprasPlanejadas(itens);
+  const itensFiltrados=filtro==='TODAS'
+    ? itens
+    : itens.filter(x=>String(x.status||'').toUpperCase()===filtro);
 
   c.innerHTML=
     `<div class="cabecalho-compras-planejadas">
@@ -937,18 +948,24 @@ async function renderComprasPlanejadas(c){
       <button id="btn-nova-compra-planejada" type="button" class="botao-nova-compra-planejada">＋ Compra</button>
     </div>`+
     `<div class="cards-resumo cards-resumo-compras">
-      <div class="card-resumo"><small>Itens planejados</small><strong class="laranja">${planejadas.length}</strong></div>
-      <div class="card-resumo"><small>Total planejado</small><strong class="laranja">${moeda(totalPlanejado)}</strong></div>
+      <div class="card-resumo"><small>Planejadas</small><strong class="laranja">${resumo.ativas.length}</strong></div>
+      <div class="card-resumo"><small>Total planejado</small><strong class="laranja">${moeda(resumo.total)}</strong></div>
+      <div class="card-resumo"><small>Compradas</small><strong class="verde">${resumo.compradas.length}</strong></div>
     </div>`+
     `<div class="barra-filtros-compras">
-      ${chipCompra('TODAS','Todas',filtroAtual)}
-      ${chipCompra('DESEJADA','Quero comprar',filtroAtual)}
-      ${chipCompra('PESQUISANDO','Pesquisando',filtroAtual)}
-      ${chipCompra('AGUARDANDO','Aguardando',filtroAtual)}
-      ${chipCompra('COMPRADA','Compradas',filtroAtual)}
+      ${chipCompra('TODAS','Todas',filtro)}
+      ${chipCompra('DESEJADA','Quero comprar',filtro)}
+      ${chipCompra('PESQUISANDO','Pesquisando',filtro)}
+      ${chipCompra('AGUARDANDO','Aguardando',filtro)}
+      ${chipCompra('COMPRADA','Compradas',filtro)}
+      ${chipCompra('DESISTIMOS','Desistimos',filtro)}
+    </div>`+
+    `<div class="cabecalho-lista-compras">
+      <strong>${esc(rotuloFiltroCompra(filtro))}</strong>
+      <span>${itensFiltrados.length} ${itensFiltrados.length===1?'item':'itens'}</span>
     </div>`+
     `<div id="lista-compras-planejadas" class="lista-compras-planejadas">
-      ${itens.length?itens.map(itemCompraPlanejada).join(''):'<div class="painel vazio">Ainda não há compras planejadas.<br>Adicione um produto pelo link da loja. 🛍️</div>'}
+      ${itensFiltrados.length?itensFiltrados.map(itemCompraPlanejada).join(''):'<div class="painel vazio">Nenhum item nesta categoria.<br>Adicione uma compra ou altere o filtro. 🛍️</div>'}
     </div>`;
 
   $('btn-nova-compra-planejada').addEventListener('click',async()=>{
@@ -959,6 +976,21 @@ async function renderComprasPlanejadas(c){
     btn.addEventListener('click',()=>renderComprasPlanejadasFiltro(c,btn.dataset.filtroCompra));
   });
 
+  ligarStatusComprasPlanejadas(c,filtro);
+}
+
+function rotuloFiltroCompra(filtro){
+  return ({
+    TODAS:'Todas as compras',
+    DESEJADA:'Quero comprar',
+    PESQUISANDO:'Em pesquisa',
+    AGUARDANDO:'Aguardando oportunidade',
+    COMPRADA:'Compradas',
+    DESISTIMOS:'Desistimos'
+  })[filtro]||'Compras';
+}
+
+function ligarStatusComprasPlanejadas(c,filtro){
   c.querySelectorAll('[data-status-compra]').forEach(sel=>{
     sel.addEventListener('change',async()=>{
       sel.disabled=true;
@@ -971,7 +1003,7 @@ async function renderComprasPlanejadas(c){
         });
         assertOk(rr);
         toast('Status atualizado! ✅');
-        await renderComprasPlanejadas(c);
+        await renderComprasPlanejadasFiltro(c,filtro);
       }catch(e){
         toast(e.message||'Não foi possível atualizar.');
         sel.disabled=false;
@@ -985,51 +1017,31 @@ function chipCompra(valor,label,atual){
 }
 
 async function renderComprasPlanejadasFiltro(c,filtro){
-  const r=await chamarApi({action:'listarComprasPlanejadas',token:sessao.token,status:filtro==='TODAS'?'':filtro});
-  assertOk(r);
-  const itens=r.dados||[];
-  const todos=await chamarApi({action:'listarComprasPlanejadas',token:sessao.token});
-  assertOk(todos);
-  const planejadas=(todos.dados||[]).filter(x=>!['COMPRADA','DESISTIMOS'].includes(String(x.status||'').toUpperCase()));
-  const totalPlanejado=planejadas.reduce((s,x)=>s+Number(x.preco||0),0);
-
-  const lista=$('lista-compras-planejadas');
-  if(lista) lista.innerHTML=itens.length?itens.map(itemCompraPlanejada).join(''):'<div class="painel vazio">Nenhum item nesta categoria.</div>';
-
-  c.querySelectorAll('.chip-compra').forEach(b=>b.classList.toggle('ativo',b.dataset.filtroCompra===filtro));
-  const cards=c.querySelectorAll('.card-resumo strong');
-  if(cards[0]) cards[0].textContent=String(planejadas.length);
-  if(cards[1]) cards[1].textContent=moeda(totalPlanejado);
-
-  c.querySelectorAll('[data-status-compra]').forEach(sel=>{
-    sel.addEventListener('change',async()=>{
-      sel.disabled=true;
-      try{
-        const rr=await chamarApi({action:'atualizarStatusCompraPlanejada',token:sessao.token,id:sel.dataset.statusCompra,status:sel.value});
-        assertOk(rr);
-        toast('Status atualizado! ✅');
-        await renderComprasPlanejadasFiltro(c,filtro);
-      }catch(e){
-        toast(e.message||'Não foi possível atualizar.');
-        sel.disabled=false;
-      }
-    });
+  const r=await chamarApi({
+    action:'listarComprasPlanejadas',
+    token:sessao.token
   });
+  assertOk(r);
+  renderListaComprasPlanejadas(c,r.dados||[],filtro);
 }
 
 function itemCompraPlanejada(x){
   const status=String(x.status||'DESEJADA').toUpperCase();
-  const imagem=x.imagemUrl?`<img class="imagem-compra-planejada" src="${escAttr(x.imagemUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`:'<div class="imagem-compra-planejada sem-imagem">🛍️</div>';
+  const imagem=x.imagemUrl
+    ? `<a class="imagem-link-compra" href="${escAttr(x.link)}" target="_blank" rel="noopener noreferrer"><img class="imagem-compra-planejada" src="${escAttr(x.imagemUrl)}" alt="" loading="lazy" onerror="this.style.display='none'" /></a>`
+    : '<a class="imagem-link-compra" href="'+escAttr(x.link)+'" target="_blank" rel="noopener noreferrer"><div class="imagem-compra-planejada sem-imagem">🛍️</div></a>';
   const descricao=x.descricao?`<div class="descricao-compra-planejada">${esc(x.descricao)}</div>`:'';
   const preco=Number(x.preco||0)>0?moeda(x.preco):'Preço não informado';
+  const categoria=x.categoria?`<span>🏷️ ${esc(x.categoria)}</span>`:'';
+  const loja=x.loja?`<span>🏪 ${esc(x.loja)}</span>`:'<span>🏪 Loja não identificada</span>';
 
-  return `<article class="card-compra-planejada">
+  return `<article class="card-compra-planejada ${status.toLowerCase()}">
     ${imagem}
     <div class="conteudo-compra-planejada">
       <div class="topo-card-compra">
-        <div>
+        <div class="titulo-compra-wrap">
           <h3>${esc(x.nome||'Produto')}</h3>
-          <div class="meta-compra-planejada">${esc(x.loja||'Loja não identificada')} ${x.categoria?'• '+esc(x.categoria):''}</div>
+          <div class="meta-compra-planejada">${loja}${categoria?` <b>•</b> ${categoria}`:''}</div>
         </div>
         <strong class="preco-compra-planejada">${esc(preco)}</strong>
       </div>
