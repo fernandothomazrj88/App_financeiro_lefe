@@ -1234,3 +1234,79 @@ textarea {
 .lista-mini-mercado div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #2a2a2a;padding-bottom:6px}
 .lista-mini-mercado span{font-weight:700;color:var(--laranja)}
 @media(max-width:520px){.cards-resumo-mercado{grid-template-columns:1fr 1fr}.cards-resumo-mercado .card-resumo:last-child{grid-column:1/-1}.cabecalho-mercado{padding-right:66px}.botao-nova-despesa{padding:10px 11px}.grid-dois-mercado{grid-template-columns:1fr 1fr}}
+
+
+/* =========================================================
+   MERCADO V22 — PREÇO REAL DURANTE A COMPRA
+========================================================= */
+.mercado-preco-area{
+  margin-top:9px;
+  padding-top:8px;
+  border-top:1px solid #292929;
+}
+.mercado-preco-label{
+  display:block;
+  color:#aaa;
+  font-size:10px;
+  margin-bottom:5px;
+}
+.mercado-preco-linha{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.campo-preco-mercado{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  border:1px solid #4a4a4a;
+  background:#0d0d0d;
+  border-radius:9px;
+  padding:0 8px;
+  min-width:122px;
+}
+.campo-preco-mercado:focus-within{
+  border-color:var(--laranja);
+}
+.campo-preco-mercado span{
+  color:#aaa;
+  font-size:11px;
+}
+.campo-preco-mercado input{
+  width:82px;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:#fff;
+  padding:8px 0;
+  font-size:13px;
+  font-weight:700;
+}
+.campo-preco-mercado input::placeholder{color:#666}
+.total-item-mercado{
+  color:var(--laranja);
+  font-size:11px;
+  font-weight:700;
+}
+.aviso-preco-mercado{
+  margin:8px 0 10px;
+  padding:9px 10px;
+  border:1px solid #5a421c;
+  background:#17130e;
+  color:#ddd;
+  border-radius:10px;
+  font-size:11px;
+  line-height:1.35;
+}
+@media(max-width:380px){
+  .mercado-preco-linha{
+    align-items:stretch;
+  }
+  .campo-preco-mercado{
+    flex:1;
+  }
+  .campo-preco-mercado input{
+    width:100%;
+  }
+}
