@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='22.7';
+const LEFE_APP_VERSION='23.0';
 
 async function prepararAtualizacaoLeFe(){
   try{
@@ -17,7 +17,7 @@ async function prepararAtualizacaoLeFe(){
     localStorage.setItem(chave,'ok');
     if('caches' in window){
       const nomes=await caches.keys();
-      await Promise.all(nomes.filter(n=>n.startsWith('lefe-home-') && n!=='lefe-home-v22-5').map(n=>caches.delete(n)));
+      await Promise.all(nomes.filter(n=>n.startsWith('lefe-home-') && n!=='lefe-home-v23-0').map(n=>caches.delete(n)));
     }
     if('serviceWorker' in navigator){
       const regs=await navigator.serviceWorker.getRegistrations();
@@ -36,9 +36,9 @@ document.addEventListener('DOMContentLoaded',async()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=22.4');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=23.0');
       await reg.update();
-      console.log('LeFe Home PWA v22.7 ativo.',reg.scope);
+      console.log('LeFe Home PWA v23.0 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
@@ -806,6 +806,7 @@ function renderListaMercado(c,itens,filtro='TODAS',busca='',resumo={}){
     `<div class="painel mercado-acoes-principais">
       <div class="barra-mercado-superior">
         <button id="btn-finalizar-compra-mercado" type="button" class="botao-salvar-pagamento">🧾 Finalizar compra</button>
+        <button id="btn-exportar-lista-mercado" type="button" class="botao-exportar-mercado">🖼️ Salvar lista</button>
         <span class="ajuda-campo">🛒 No mercado: informe o preço real e toque em “Marcar como comprado”. O item entra no total. Use “Excluir” para remover da lista.</span>
       </div>
       ${avisoPreco}
@@ -819,6 +820,7 @@ function renderListaMercado(c,itens,filtro='TODAS',busca='',resumo={}){
 
   $('btn-novo-item-mercado').addEventListener('click',()=>renderNovoItemMercado(c));
   $('btn-finalizar-compra-mercado').addEventListener('click',()=>renderFinalizarCompraMercado(c,itens));
+  $('btn-exportar-lista-mercado').addEventListener('click',()=>abrirExportacaoMercado(itens));
 
   let timer=null;
   $('busca-mercado').addEventListener('input',e=>{
@@ -1121,6 +1123,196 @@ async function renderFinalizarCompraMercado(c,itens){
       btn.textContent='✅ Registrar compra';
     }
   });
+}
+
+/* =========================================================
+   MERCADO V23 — EXPORTAÇÃO DA LISTA
+========================================================= */
+
+function abrirExportacaoMercado(itens){
+  const ativos=(itens||[]).filter(x=>String(x.naLista||'SIM').toUpperCase()!=='NÃO');
+  const canvas=criarCanvasListaMercado(ativos);
+  const imagem=canvas.toDataURL('image/png');
+
+  const antigo=document.getElementById('modal-exportacao-mercado');
+  if(antigo) antigo.remove();
+
+  const modal=document.createElement('div');
+  modal.id='modal-exportacao-mercado';
+  modal.className='modal-exportacao-mercado';
+  modal.innerHTML=`
+    <div class="modal-exportacao-card">
+      <div class="modal-exportacao-topo">
+        <div>
+          <h3>🖼️ Lista de mercado</h3>
+          <p>Visualize e salve a lista para levar com você.</p>
+        </div>
+        <button type="button" class="modal-exportacao-fechar" id="fechar-exportacao-mercado">✕</button>
+      </div>
+      <div class="modal-exportacao-preview">
+        <img src="${imagem}" alt="Prévia da lista de mercado">
+      </div>
+      <div class="modal-exportacao-acoes">
+        <button type="button" class="botao-exportacao principal" id="baixar-lista-png">🖼️ PNG</button>
+        <button type="button" class="botao-exportacao" id="baixar-lista-jpeg">📷 JPEG</button>
+        <button type="button" class="botao-exportacao" id="imprimir-lista-pdf">📄 PDF</button>
+      </div>
+      <small class="ajuda-campo exportacao-nota">PNG/JPEG baixam a imagem da lista. PDF abre a impressão do navegador para você escolher “Salvar como PDF”.</small>
+    </div>`;
+
+  document.body.appendChild(modal);
+  document.body.classList.add('modal-aberto');
+
+  const fechar=()=>{
+    modal.remove();
+    document.body.classList.remove('modal-aberto');
+  };
+
+  $('fechar-exportacao-mercado').addEventListener('click',fechar);
+  modal.addEventListener('click',e=>{if(e.target===modal)fechar();});
+  $('baixar-lista-png').addEventListener('click',()=>baixarCanvasListaMercado(canvas,'png'));
+  $('baixar-lista-jpeg').addEventListener('click',()=>baixarCanvasListaMercado(criarCanvasListaMercado(ativos),'jpeg'));
+  $('imprimir-lista-pdf').addEventListener('click',()=>imprimirListaMercado(ativos));
+}
+
+function criarCanvasListaMercado(itens){
+  const ordem=['ESSENCIAL','MISTURA','ADICIONAIS','LIMPEZA/HIGIENE'];
+  const grupos={};
+  ordem.forEach(c=>grupos[c]=[]);
+  (itens||[]).forEach(x=>{
+    const c=String(x.categoria||'ADICIONAIS').toUpperCase();
+    if(!grupos[c]) grupos[c]=[];
+    grupos[c].push(x);
+  });
+  Object.keys(grupos).forEach(c=>grupos[c].sort((a,b)=>String(a.produto||'').localeCompare(String(b.produto||''),'pt-BR')));
+
+  const totalItens=Object.values(grupos).reduce((n,g)=>n+g.length,0);
+  const altura=190+Object.values(grupos).reduce((n,g)=>n+(g.length?60+g.length*78:0),0)+100;
+  const canvas=document.createElement('canvas');
+  canvas.width=1200;
+  canvas.height=Math.max(700,altura);
+  const ctx=canvas.getContext('2d');
+
+  ctx.fillStyle='#ffffff';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#ED7014';
+  ctx.fillRect(0,0,canvas.width,120);
+  ctx.fillStyle='#111111';
+  ctx.font='800 42px Arial';
+  ctx.fillText('LeFe Home',55,58);
+  ctx.fillStyle='#ffffff';
+  ctx.font='700 30px Arial';
+  ctx.fillText('LISTA DE MERCADO',55,98);
+
+  ctx.fillStyle='#222222';
+  ctx.font='20px Arial';
+  ctx.fillText(`${new Date().toLocaleDateString('pt-BR')} • ${totalItens} ${totalItens===1?'item':'itens'}`,880,68);
+  ctx.font='18px Arial';
+  ctx.fillText('Fernando & Letícia',880,96);
+
+  let y=165;
+  Object.entries(grupos).forEach(([cat,lista])=>{
+    if(!lista.length) return;
+    const nome=cat==='LIMPEZA/HIGIENE'?'LIMPEZA / HIGIENE':cat;
+    ctx.fillStyle='#111111';
+    ctx.fillRect(45,y-30,1110,48);
+    ctx.fillStyle='#ffffff';
+    ctx.font='700 22px Arial';
+    ctx.fillText(nome,y+3,70+0);
+    y+=55;
+
+    lista.forEach(x=>{
+      const comprado=String(x.comprado||'NÃO').toUpperCase()==='SIM';
+      const qtd=Number(x.quantidade||0);
+      const qtdTxt=qtd?`${qtd} ${x.unidade||'un'}`:'';
+      const unit=Number(x.valorUnitario||0);
+      const total=Number(x.valorTotal||0);
+
+      ctx.strokeStyle=comprado?'#ED7014':'#777777';
+      ctx.lineWidth=3;
+      ctx.strokeRect(58,y-18,28,28);
+      if(comprado){
+        ctx.fillStyle='#ED7014';
+        ctx.fillRect(58,y-18,28,28);
+        ctx.strokeStyle='#ffffff';
+        ctx.lineWidth=4;
+        ctx.beginPath();ctx.moveTo(64,y-3);ctx.lineTo(70,y+4);ctx.lineTo(82,y-10);ctx.stroke();
+      }
+
+      ctx.fillStyle=comprado?'#777777':'#111111';
+      ctx.font='700 25px Arial';
+      ctx.fillText(String(x.produto||'Produto'),105,y+3);
+      ctx.font='18px Arial';
+      ctx.fillStyle='#555555';
+      ctx.fillText(qtdTxt||'Quantidade não informada',105,y+30);
+
+      if(unit>0){
+        ctx.fillStyle='#ED7014';
+        ctx.font='700 18px Arial';
+        ctx.fillText(`R$ ${unit.toFixed(2).replace('.',',')}${total>0&&qtd>1?'  •  Total '+moeda(total):''}`,760,y+16);
+      }
+      y+=78;
+    });
+    y+=8;
+  });
+
+  ctx.fillStyle='#eeeeee';
+  ctx.fillRect(45,y,1110,1);
+  y+=38;
+  const comprados=(itens||[]).filter(x=>String(x.comprado||'NÃO').toUpperCase()==='SIM');
+  const totalComprado=comprados.reduce((t,x)=>t+Number(x.valorTotal||0),0);
+  ctx.fillStyle='#111111';
+  ctx.font='700 24px Arial';
+  ctx.fillText(`Comprados: ${comprados.length}   •   Total: ${moeda(totalComprado)}`,55,y);
+  ctx.fillStyle='#777777';
+  ctx.font='16px Arial';
+  ctx.fillText('Gerado pelo LeFe Home',55,y+30);
+
+  return canvas;
+}
+
+function baixarCanvasListaMercado(canvas,formato){
+  const ext=formato==='jpeg'?'jpg':'png';
+  const mime=formato==='jpeg'?'image/jpeg':'image/png';
+  canvas.toBlob(blob=>{
+    if(!blob){toast('Não foi possível gerar a imagem.');return;}
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=`lefe-home-lista-mercado-${dataInputHoje()}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    toast(`Lista salva em ${ext.toUpperCase()}! 🧡`);
+  },mime,formato==='jpeg'?0.95:undefined);
+}
+
+function imprimirListaMercado(itens){
+  const grupos={};
+  (itens||[]).forEach(x=>{
+    const c=String(x.categoria||'ADICIONAIS').toUpperCase();
+    (grupos[c] ||= []).push(x);
+  });
+  Object.values(grupos).forEach(g=>g.sort((a,b)=>String(a.produto||'').localeCompare(String(b.produto||''),'pt-BR')));
+
+  const ordem=['ESSENCIAL','MISTURA','ADICIONAIS','LIMPEZA/HIGIENE'];
+  const conteudo=ordem.filter(c=>grupos[c]?.length).map(c=>{
+    const nome=c==='LIMPEZA/HIGIENE'?'Limpeza / Higiene':c.charAt(0)+c.slice(1).toLowerCase();
+    return `<section><h2>${esc(nome)}</h2>${grupos[c].map(x=>{
+      const ok=String(x.comprado||'NÃO').toUpperCase()==='SIM';
+      const qtd=Number(x.quantidade||0);
+      const qtdTxt=qtd?`${qtd} ${esc(x.unidade||'un')}`:'';
+      const total=Number(x.valorTotal||0);
+      return `<div class="linha"><span class="check">${ok?'✓':'□'}</span><strong>${esc(x.produto||'Produto')}</strong><span>${qtdTxt}</span><span>${total>0?moeda(total):''}</span></div>`;
+    }).join('')}</section>`;
+  }).join('');
+
+  const w=window.open('','_blank','width=900,height=900');
+  if(!w){toast('O navegador bloqueou a janela de PDF. Permita pop-ups para o LeFe Home.');return;}
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>LeFe Home - Lista de Mercado</title><style>
+    @page{size:A4;margin:14mm}body{font-family:Arial,sans-serif;color:#111;margin:0}header{border-bottom:4px solid #ED7014;padding-bottom:12px;margin-bottom:20px}h1{margin:0;font-size:28px}p{margin:5px 0;color:#666}section{margin-bottom:18px;break-inside:avoid}h2{background:#111;color:#fff;padding:8px 10px;font-size:17px;margin:0 0 7px}.linha{display:grid;grid-template-columns:32px 1fr 100px 100px;gap:8px;padding:8px 4px;border-bottom:1px solid #ddd;font-size:14px;align-items:center}.check{font-size:20px}.rodape{margin-top:20px;border-top:1px solid #ddd;padding-top:10px;color:#666;font-size:12px}@media print{.no-print{display:none}}button{padding:10px 14px;background:#ED7014;color:#fff;border:0;border-radius:8px;font-weight:700}</style></head><body><header><h1>LeFe Home — Lista de Mercado</h1><p>${new Date().toLocaleDateString('pt-BR')} • Fernando & Letícia</p></header>${conteudo}<div class="rodape">Lista gerada pelo LeFe Home.</div><div class="no-print" style="margin-top:20px"><button onclick="window.print()">📄 Salvar como PDF / Imprimir</button></div><script>setTimeout(()=>window.print(),350)<\/script></body></html>`);
+  w.document.close();
 }
 
 /* =========================================================
