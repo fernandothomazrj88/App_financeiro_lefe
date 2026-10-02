@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='23.0';
+const LEFE_APP_VERSION='24.1';
 
 async function prepararAtualizacaoLeFe(){
   try{
@@ -17,7 +17,7 @@ async function prepararAtualizacaoLeFe(){
     localStorage.setItem(chave,'ok');
     if('caches' in window){
       const nomes=await caches.keys();
-      await Promise.all(nomes.filter(n=>n.startsWith('lefe-home-') && n!=='lefe-home-v23-0').map(n=>caches.delete(n)));
+      await Promise.all(nomes.filter(n=>n.startsWith('lefe-home-') && n!=='lefe-home-v24-1').map(n=>caches.delete(n)));
     }
     if('serviceWorker' in navigator){
       const regs=await navigator.serviceWorker.getRegistrations();
@@ -36,9 +36,9 @@ document.addEventListener('DOMContentLoaded',async()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=23.0');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=24.1');
       await reg.update();
-      console.log('LeFe Home PWA v23.0 ativo.',reg.scope);
+      console.log('LeFe Home PWA v24.1 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
@@ -807,6 +807,7 @@ function renderListaMercado(c,itens,filtro='TODAS',busca='',resumo={}){
       <div class="barra-mercado-superior">
         <button id="btn-finalizar-compra-mercado" type="button" class="botao-salvar-pagamento">🧾 Finalizar compra</button>
         <button id="btn-exportar-lista-mercado" type="button" class="botao-exportar-mercado">🖼️ Salvar lista</button>
+        <button id="btn-historico-mercado" type="button" class="botao-exportar-mercado">📜 Histórico</button>
         <span class="ajuda-campo">🛒 No mercado: informe o preço real e toque em “Marcar como comprado”. O item entra no total. Use “Excluir” para remover da lista.</span>
       </div>
       ${avisoPreco}
@@ -821,6 +822,7 @@ function renderListaMercado(c,itens,filtro='TODAS',busca='',resumo={}){
   $('btn-novo-item-mercado').addEventListener('click',()=>renderNovoItemMercado(c));
   $('btn-finalizar-compra-mercado').addEventListener('click',()=>renderFinalizarCompraMercado(c,itens));
   $('btn-exportar-lista-mercado').addEventListener('click',()=>abrirExportacaoMercado(itens));
+  $('btn-historico-mercado').addEventListener('click',()=>renderHistoricoMercado(c));
 
   let timer=null;
   $('busca-mercado').addEventListener('input',e=>{
@@ -956,6 +958,124 @@ function itemMercadoV21(x){
         </button>
       </div>
     </div>
+  </div>`;
+}
+
+async function renderHistoricoMercado(c, filtroInicial='TODAS', buscaInicial=''){
+  subtelaModulo='historico-mercado';
+  rolarModuloTopo();
+
+  try{
+    const r=await chamarApi({action:'listarCompras',token:sessao.token});
+    assertOk(r);
+    renderHistoricoMercadoLista(c,r.dados||[],filtroInicial,buscaInicial);
+  }catch(e){
+    toast(e.message||'Não foi possível carregar o histórico.');
+    await renderMercado(c);
+  }
+}
+
+function renderHistoricoMercadoLista(c,compras,filtro='TODAS',busca=''){
+  const agora=new Date();
+  const mesAtual=agora.getMonth();
+  const anoAtual=agora.getFullYear();
+  const mesAnterior=mesAtual===0?11:mesAtual-1;
+  const anoMesAnterior=mesAtual===0?anoAtual-1:anoAtual;
+  const buscaNorm=String(busca||'').trim().toLowerCase();
+
+  const dataCompra=x=>{
+    const d=new Date(x.data||x.criadoEm||'');
+    return Number.isNaN(d.getTime())?null:d;
+  };
+
+  let lista=(compras||[]).filter(x=>{
+    const d=dataCompra(x);
+    let okFiltro=true;
+    if(filtro==='ESTE_MES') okFiltro=!!d&&d.getMonth()===mesAtual&&d.getFullYear()===anoAtual;
+    if(filtro==='MES_ANTERIOR') okFiltro=!!d&&d.getMonth()===mesAnterior&&d.getFullYear()===anoMesAnterior;
+    const texto=[x.mercado,x.tipoCompra,x.formaPagamento,x.observacao].join(' ').toLowerCase();
+    return okFiltro && (!buscaNorm||texto.includes(buscaNorm));
+  }).sort((a,b)=>{
+    const da=dataCompra(a)?.getTime()||0;
+    const db=dataCompra(b)?.getTime()||0;
+    return db-da;
+  });
+
+  const totalPeriodo=lista.reduce((t,x)=>t+Number(x.valorTotal||0),0);
+  const qtdItens=lista.reduce((t,x)=>t+Number(x.quantidadeItens||0),0);
+
+  c.innerHTML=
+    cabecalho('📜','Histórico de compras','Tudo o que já foi registrado no Mercado')+
+    `<div class="cards-resumo cards-resumo-mercado historico-resumo-mercado">
+      <div class="card-resumo"><small>Compras</small><strong class="laranja">${lista.length}</strong></div>
+      <div class="card-resumo"><small>Itens</small><strong class="verde">${qtdItens}</strong></div>
+      <div class="card-resumo"><small>Total</small><strong class="laranja">${moeda(totalPeriodo)}</strong></div>
+    </div>`+
+    `<div class="painel historico-filtros-mercado">
+      <div class="barra-acoes barra-acoes-mercado">
+        ${[['TODAS','Todas'],['ESTE_MES','Este mês'],['MES_ANTERIOR','Mês anterior']].map(([v,t])=>`<button type="button" class="chip ${filtro===v?'ativo':''}" data-filtro-historico="${v}">${t}</button>`).join('')}
+      </div>
+      <div class="busca-mercado-wrap" style="margin-top:10px;margin-bottom:0"><span>🔎</span><input id="busca-historico-mercado" type="search" value="${escAttr(busca)}" placeholder="Buscar por mercado..." autocomplete="off"></div>
+    </div>`+
+    `<div class="painel">
+      <div class="painel-titulo"><h3>Compras registradas</h3><span>${lista.length} ${lista.length===1?'compra':'compras'}</span></div>
+      <div class="lista-modulo historico-lista-mercado">
+        ${lista.length?lista.map(itemHistoricoMercado).join(''):'<div class="vazio">Nenhuma compra encontrada neste filtro.</div>'}
+      </div>
+    </div>`+
+    `<button id="btn-voltar-mercado-historico" type="button" class="botao-cancelar-pagamento">← Voltar para Mercado</button>`;
+
+  $('btn-voltar-mercado-historico').addEventListener('click',()=>renderMercado(c));
+
+  c.querySelectorAll('[data-filtro-historico]').forEach(btn=>{
+    btn.addEventListener('click',()=>renderHistoricoMercadoLista(c,compras,btn.dataset.filtroHistorico,$('busca-historico-mercado').value));
+  });
+
+  let timer=null;
+  $('busca-historico-mercado').addEventListener('input',e=>{
+    clearTimeout(timer);
+    const v=e.target.value;
+    timer=setTimeout(()=>renderHistoricoMercadoLista(c,compras,filtro,v),160);
+  });
+
+  c.querySelectorAll('[data-historico-toggle]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const id=btn.dataset.historicoToggle;
+      const alvo=document.querySelector(`[data-historico-detalhe="${CSS.escape(id)}"]`);
+      if(!alvo) return;
+      const aberto=alvo.classList.toggle('aberto');
+      btn.textContent=aberto?'▲ Ocultar itens':'▼ Ver itens';
+    });
+  });
+}
+
+function itemHistoricoMercado(x){
+  const d=new Date(x.data||x.criadoEm||'');
+  const dataFmt=Number.isNaN(d.getTime())?'—':d.toLocaleDateString('pt-BR');
+  const itens=Array.isArray(x.itens)?x.itens:[];
+  const quantidade=Number(x.quantidadeItens||itens.length||0);
+  const comprovante=x.comprovanteUrl?`<a class="historico-comprovante-mercado" href="${escAttr(x.comprovanteUrl)}" target="_blank" rel="noopener">📎 Comprovante</a>`:'';
+  const listaItens=itens.length
+    ? itens.map(i=>`<div class="historico-item-linha"><span>${esc(i.produto||'Produto')} <small>${Number(i.quantidade||0)} ${esc(i.unidade||'un')}</small></span><strong>${moeda(i.valorTotal||0)}</strong></div>`).join('')
+    : '<div class="historico-sem-itens">Itens desta compra não foram vinculados.</div>';
+
+  return `<div class="historico-compra-card">
+    <div class="historico-compra-topo">
+      <div>
+        <div class="historico-mercado-nome">🏪 ${esc(x.mercado||'Mercado não informado')}</div>
+        <div class="historico-meta">${dataFmt} • ${esc(x.formaPagamento||'Forma não informada')}</div>
+      </div>
+      <div class="historico-total">${moeda(x.valorTotal||0)}</div>
+    </div>
+    <div class="historico-compra-meta">
+      <span>🛒 ${quantidade} ${quantidade===1?'item':'itens'}</span>
+      ${x.tipoCompra?`<span>• ${esc(x.tipoCompra)}</span>`:''}
+    </div>
+    <div class="historico-acoes">
+      <button type="button" class="botao-exportar-mercado" data-historico-toggle="${escAttr(x.id)}">▼ Ver itens</button>
+      ${comprovante}
+    </div>
+    <div class="historico-detalhe-mercado" data-historico-detalhe="${escAttr(x.id)}">${listaItens}${x.observacao?`<div class="historico-observacao">💬 ${esc(x.observacao)}</div>`:''}</div>
   </div>`;
 }
 

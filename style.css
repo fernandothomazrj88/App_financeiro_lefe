@@ -1348,3 +1348,33 @@ body.modal-aberto{overflow:hidden}
   .modal-exportacao-preview{max-height:58vh}
 }
 @media print{.modal-exportacao-mercado{display:none!important}}
+
+
+/* =========================================================
+   MERCADO V24 — HISTÓRICO DE COMPRAS
+========================================================= */
+.historico-resumo-mercado{margin-top:10px}
+.historico-filtros-mercado{padding:11px}
+.historico-lista-mercado{display:flex;flex-direction:column;gap:10px}
+.historico-compra-card{border:1px solid #363636;background:#121212;border-radius:14px;padding:12px}
+.historico-compra-topo{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.historico-mercado-nome{font-weight:800;font-size:15px}
+.historico-meta{color:#999;font-size:11px;margin-top:4px}
+.historico-total{font-weight:900;color:var(--laranja);font-size:17px;white-space:nowrap}
+.historico-compra-meta{display:flex;gap:7px;color:#ccc;font-size:11px;margin-top:9px}
+.historico-acoes{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.historico-acoes .botao-exportar-mercado{padding:8px 11px}
+.historico-comprovante-mercado{display:inline-flex;align-items:center;justify-content:center;border:1px solid #555;background:#171717;color:#fff;text-decoration:none;border-radius:10px;padding:8px 11px;font-weight:700;font-size:12px}
+.historico-comprovante-mercado:hover{border-color:var(--laranja)}
+.historico-detalhe-mercado{display:none;margin-top:10px;border-top:1px solid #292929;padding-top:9px}
+.historico-detalhe-mercado.aberto{display:block}
+.historico-item-linha{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #242424;font-size:12px}
+.historico-item-linha small{color:#888;margin-left:4px}
+.historico-item-linha strong{color:#ddd;white-space:nowrap}
+.historico-sem-itens{color:#999;font-size:12px;padding:6px 0}
+.historico-observacao{margin-top:9px;color:#bbb;font-size:11px;line-height:1.4}
+@media(max-width:520px){
+  .historico-compra-topo{align-items:center}
+  .historico-total{font-size:15px}
+  .historico-acoes>*{flex:1;min-width:130px;text-align:center}
+}
