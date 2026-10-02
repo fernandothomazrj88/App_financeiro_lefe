@@ -1310,3 +1310,16 @@ textarea {
     width:100%;
   }
 }
+
+
+/* =========================================================
+   MERCADO V22.7 — AÇÕES EXPLÍCITAS DO ITEM
+========================================================= */
+.mercado-item-acoes{display:flex;gap:8px;align-items:stretch;margin-top:10px;flex-wrap:wrap}
+.botao-marcar-mercado{flex:1 1 220px;min-height:40px;border:1px solid #555;border-radius:10px;background:#171717;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;padding:9px 12px;cursor:pointer}
+.botao-marcar-mercado:hover{border-color:#ED7014}
+.botao-marcar-mercado.ok{background:rgba(0,180,80,.12);border-color:#00b450;color:#7dffae}
+.icone-check-mercado{font-size:20px;line-height:1}
+.botao-excluir-mercado{flex:0 0 auto;min-height:40px;border:1px solid #633;border-radius:10px;background:#1a1010;color:#ffb1b1;padding:9px 12px;font-weight:700;cursor:pointer}
+.botao-excluir-mercado:hover{border-color:#ff5b5b;color:#fff}
+@media(max-width:520px){.mercado-item-acoes{flex-direction:column}.botao-marcar-mercado,.botao-excluir-mercado{width:100%;flex:1 1 auto}}

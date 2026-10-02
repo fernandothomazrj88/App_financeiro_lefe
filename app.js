@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='22.5';
+const LEFE_APP_VERSION='22.7';
 
 async function prepararAtualizacaoLeFe(){
   try{
@@ -38,7 +38,7 @@ if('serviceWorker' in navigator){
     try{
       const reg=await navigator.serviceWorker.register('./service-worker.js?v=22.4');
       await reg.update();
-      console.log('LeFe Home PWA v22.5 ativo.',reg.scope);
+      console.log('LeFe Home PWA v22.7 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
@@ -806,7 +806,7 @@ function renderListaMercado(c,itens,filtro='TODAS',busca='',resumo={}){
     `<div class="painel mercado-acoes-principais">
       <div class="barra-mercado-superior">
         <button id="btn-finalizar-compra-mercado" type="button" class="botao-salvar-pagamento">🧾 Finalizar compra</button>
-        <span class="ajuda-campo">Marque o item quando colocar no carrinho e informe o preço real.</span>
+        <span class="ajuda-campo">🛒 No mercado: informe o preço real e toque em “Marcar como comprado”. O item entra no total. Use “Excluir” para remover da lista.</span>
       </div>
       ${avisoPreco}
       <div class="busca-mercado-wrap"><span>🔎</span><input id="busca-mercado" type="search" value="${escAttr(busca)}" placeholder="Buscar produto..." autocomplete="off"></div>
@@ -880,6 +880,28 @@ function renderListaMercado(c,itens,filtro='TODAS',busca='',resumo={}){
       }
     });
   });
+
+  c.querySelectorAll('[data-excluir-mercado-id]').forEach(btn=>{
+    btn.addEventListener('click',async()=>{
+      const id=btn.dataset.excluirMercadoId;
+      const produto=btn.dataset.produto||'este item';
+      if(!confirm(`Excluir "${produto}" da lista?\n\nEssa ação remove o item da lista de mercado.`)) return;
+      btn.disabled=true;
+      try{
+        const rr=await chamarApi({
+          action:'excluirItemMercado',
+          token:sessao.token,
+          id
+        });
+        assertOk(rr);
+        toast('Item excluído da lista. 🗑️');
+        await renderMercado(c,filtro,$('busca-mercado')?.value||'');
+      }catch(e){
+        toast(e.message||'Não foi possível excluir o item.');
+        btn.disabled=false;
+      }
+    });
+  });
 }
 
 function itemMercadoV21(x){
@@ -914,15 +936,24 @@ function itemMercadoV21(x){
           <span class="total-item-mercado">${total>0?'Total: '+moeda(total):'Total: —'}</span>
         </div>
       </div>
-    </div>
 
-    <button type="button"
-      class="check-mercado ${ok?'ok':''}"
-      data-mercado-id="${escAttr(x.id)}"
-      data-ok="${ok?'SIM':'NÃO'}"
-      aria-label="${ok?'Desmarcar item':'Marcar item como comprado'}">
-      ${ok?'✓':''}
-    </button>
+      <div class="mercado-item-acoes">
+        <button type="button"
+          class="botao-marcar-mercado ${ok?'ok':''}"
+          data-mercado-id="${escAttr(x.id)}"
+          data-ok="${ok?'SIM':'NÃO'}"
+          aria-label="${ok?'Desmarcar como comprado':'Marcar como comprado'}">
+          <span class="icone-check-mercado">${ok?'✓':'○'}</span>
+          <span>${ok?'Comprado — tocar para desfazer':'Marcar como comprado'}</span>
+        </button>
+        <button type="button"
+          class="botao-excluir-mercado"
+          data-excluir-mercado-id="${escAttr(x.id)}"
+          data-produto="${escAttr(x.produto||'item')}">
+          🗑️ Excluir
+        </button>
+      </div>
+    </div>
   </div>`;
 }
 
