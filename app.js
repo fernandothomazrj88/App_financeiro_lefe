@@ -13,9 +13,9 @@ document.addEventListener('DOMContentLoaded',iniciarApp);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=20');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=21');
       await reg.update();
-      console.log('LeFe Home PWA v20 ativo.',reg.scope);
+      console.log('LeFe Home PWA v21 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
@@ -135,6 +135,19 @@ async function voltarModuloOuHome(){
     c.innerHTML='<div class="carregando">Carregando...</div>';
     try{
       await renderFinanceiro(c);
+      rolarModuloTopo();
+    }catch(e){
+      c.innerHTML='<div class="erro">'+esc(e.message)+'</div>';
+    }
+    return;
+  }
+
+  if(moduloAtual==='mercado' && (subtelaModulo==='novo-item-mercado' || subtelaModulo==='finalizar-compra-mercado')){
+    subtelaModulo=null;
+    const c=$('modulo-conteudo');
+    c.innerHTML='<div class="carregando">Carregando...</div>';
+    try{
+      await renderMercado(c);
       rolarModuloTopo();
     }catch(e){
       c.innerHTML='<div class="erro">'+esc(e.message)+'</div>';
@@ -718,30 +731,155 @@ async function renderRegistrarPagamento(c,item){
    MERCADO
 ========================================================= */
 
-async function renderMercado(c){
+async function renderMercado(c, filtroInicial='TODAS', buscaInicial=''){
   subtelaModulo=null;
   const r=await chamarApi({action:'listarMercado',token:sessao.token,referencia:referenciaAtual()});
   assertOk(r);
-  const itens=r.dados||[];
-  c.innerHTML=cabecalho('🛒','Mercado','Lista de compras e registros')+`<div class="painel"><div class="painel-titulo"><h3>Minha lista de compras</h3><span>${itens.length} itens</span></div><div class="lista-modulo">${itens.length?itens.map(itemMercado).join(''):'<div class="vazio">Sua lista está vazia. Você pode preencher a aba MERCADO na planilha.</div>'}</div></div>`;
+  const todos=(r.dados||[]).filter(x=>String(x.naLista||'SIM').toUpperCase()!=='NÃO');
+  const pendentes=todos.filter(x=>String(x.comprado||'NÃO').toUpperCase()!=='SIM');
+  const comprados=todos.filter(x=>String(x.comprado||'NÃO').toUpperCase()==='SIM');
+  const estimado=todos.reduce((t,x)=>t+Number(x.valorTotal||0),0);
+  renderListaMercado(c,todos,filtroInicial,buscaInicial,{pendentes:pendentes.length,comprados:comprados.length,estimado});
+}
+
+function renderListaMercado(c,itens,filtro='TODAS',busca='',resumo={}){
+  const categorias=['TODAS','ESSENCIAL','ADICIONAIS','MISTURA','LIMPEZA/HIGIENE'];
+  const buscaNorm=String(busca||'').trim().toLowerCase();
+  let lista=itens.filter(x=>{
+    const cat=String(x.categoria||'').toUpperCase();
+    const okCat=filtro==='TODAS'||cat===filtro;
+    const texto=[x.produto,x.categoria,x.observacao].join(' ').toLowerCase();
+    return okCat && (!buscaNorm||texto.includes(buscaNorm));
+  });
+
+  const valorEstimado=lista.reduce((t,x)=>t+Number(x.valorTotal||0),0);
+
+  c.innerHTML=
+    `<div class="cabecalho-modulo cabecalho-mercado">
+      <div class="icone-grande">🛒</div>
+      <div><h2>Mercado</h2><p>Lista de compras para o dia a dia</p></div>
+      <div class="acoes-mercado-topo"><button id="btn-novo-item-mercado" type="button" class="botao-nova-despesa">＋ Item</button></div>
+    </div>`+
+    `<div class="cards-resumo cards-resumo-mercado">
+      <div class="card-resumo"><small>Pendentes</small><strong class="laranja">${Number(resumo.pendentes||0)}</strong></div>
+      <div class="card-resumo"><small>Já pegos</small><strong class="verde">${Number(resumo.comprados||0)}</strong></div>
+      <div class="card-resumo"><small>Estimativa</small><strong class="laranja">${moeda(resumo.estimado||0)}</strong></div>
+    </div>`+
+    `<div class="painel mercado-acoes-principais">
+      <div class="barra-mercado-superior">
+        <button id="btn-finalizar-compra-mercado" type="button" class="botao-salvar-pagamento">🧾 Finalizar compra</button>
+        <span class="ajuda-campo">Marque os itens conforme coloca no carrinho.</span>
+      </div>
+      <div class="busca-mercado-wrap"><span>🔎</span><input id="busca-mercado" type="search" value="${escAttr(busca)}" placeholder="Buscar produto..." autocomplete="off"></div>
+      <div class="barra-acoes barra-acoes-mercado">${categorias.map(cat=>`<button type="button" class="chip ${cat===filtro?'ativo':''}" data-filtro-mercado="${escAttr(cat)}">${esc(cat==='LIMPEZA/HIGIENE'?'Limpeza/Higiene':cat.charAt(0)+cat.slice(1).toLowerCase())}</button>`).join('')}</div>
+    </div>`+
+    `<div class="painel">
+      <div class="painel-titulo"><h3>${filtro==='TODAS'?'Minha lista':filtro}</h3><span>${lista.length} itens · ${moeda(valorEstimado)}</span></div>
+      <div class="lista-modulo lista-mercado-v21">${lista.length?lista.map(itemMercadoV21).join(''):'<div class="vazio">Nenhum item encontrado. Clique em ＋ Item para adicionar.</div>'}</div>
+    </div>`;
+
+  $('btn-novo-item-mercado').addEventListener('click',()=>renderNovoItemMercado(c));
+  $('btn-finalizar-compra-mercado').addEventListener('click',()=>renderFinalizarCompraMercado(c,itens));
+
+  let timer=null;
+  $('busca-mercado').addEventListener('input',e=>{
+    const v=e.target.value;
+    clearTimeout(timer);
+    timer=setTimeout(()=>renderListaMercado(c,itens,filtro,v,resumo),160);
+  });
+  c.querySelectorAll('[data-filtro-mercado]').forEach(btn=>btn.addEventListener('click',()=>renderListaMercado(c,itens,btn.dataset.filtroMercado,$('busca-mercado').value,resumo)));
+
   c.querySelectorAll('[data-mercado-id]').forEach(btn=>btn.addEventListener('click',async()=>{
     btn.disabled=true;
     try{
       const novo=btn.dataset.ok!=='SIM';
       const rr=await chamarApi({action:'atualizarItemMercado',token:sessao.token,id:btn.dataset.mercadoId,dados:{comprado:novo?'SIM':'NÃO'}});
       assertOk(rr);
-      await renderMercado(c);
-    }catch(e){
-      toast(e.message);
-    }finally{
-      btn.disabled=false;
-    }
+      toast(novo?'Item marcado como pego! 🛒':'Item voltou para a lista.');
+      await renderMercado(c,filtro,$('busca-mercado')?.value||'');
+    }catch(e){toast(e.message||'Não foi possível atualizar o item.');btn.disabled=false;}
   }));
 }
 
-function itemMercado(x){
-  const ok=String(x.comprado).toUpperCase()==='SIM';
-  return `<div class="item-lista"><div><div class="descricao">${esc(x.produto)}</div><div class="meta">${esc(x.categoria||'')} • ${esc(String(x.quantidade||''))} ${esc(x.unidade||'')}</div></div><button class="check-mercado ${ok?'ok':''}" data-mercado-id="${esc(x.id)}" data-ok="${ok?'SIM':'NÃO'}">${ok?'✓':''}</button></div>`;
+function itemMercadoV21(x){
+  const ok=String(x.comprado||'NÃO').toUpperCase()==='SIM';
+  const qtd=Number(x.quantidade||0);
+  const qtdTxt=qtd?`${qtd} ${x.unidade||'un'}`:'';
+  const total=Number(x.valorTotal||0)>0?moeda(x.valorTotal):'';
+  return `<div class="item-lista item-mercado-v21 ${ok?'item-mercado-comprado':''}">
+    <div class="item-mercado-info">
+      <div class="descricao">${esc(x.produto||'Produto')}</div>
+      <div class="meta">${esc(x.categoria||'')} ${qtdTxt?'• '+esc(qtdTxt):''}${total?' • '+esc(total):''}</div>
+      ${x.observacao?`<div class="meta">💬 ${esc(x.observacao)}</div>`:''}
+    </div>
+    <button type="button" class="check-mercado ${ok?'ok':''}" data-mercado-id="${escAttr(x.id)}" data-ok="${ok?'SIM':'NÃO'}" aria-label="${ok?'Desmarcar item':'Marcar item como pego'}">${ok?'✓':''}</button>
+  </div>`;
+}
+
+async function renderNovoItemMercado(c){
+  subtelaModulo='novo-item-mercado';
+  rolarModuloTopo();
+  const categorias=['ESSENCIAL','ADICIONAIS','MISTURA','LIMPEZA/HIGIENE'];
+  const unidades=['un','kg','g','L','ml','pct','cx'];
+  c.innerHTML=cabecalho('➕','Adicionar item','Coloque aqui o que vocês precisam comprar')+
+  `<form id="form-novo-item-mercado" class="form-pagamento">
+    <label class="campo-pagamento"><span>📝 Produto *</span><input id="mercado-produto" type="text" maxlength="120" placeholder="Ex.: Arroz 5 kg" required></label>
+    <label class="campo-pagamento"><span>🏷️ Categoria</span><select id="mercado-categoria">${categorias.map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label>
+    <div class="grid-dois-mercado">
+      <label class="campo-pagamento"><span>🔢 Quantidade</span><input id="mercado-quantidade" type="number" min="0.01" step="0.01" value="1" inputmode="decimal"></label>
+      <label class="campo-pagamento"><span>📦 Unidade</span><select id="mercado-unidade">${unidades.map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label>
+    </div>
+    <label class="campo-pagamento"><span>💰 Preço estimado por unidade</span><input id="mercado-valor-unitario" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+    <label class="campo-pagamento"><span>💬 Observação</span><textarea id="mercado-observacao" maxlength="250" rows="3" placeholder="Marca, tamanho, sabor, preferência..." ></textarea></label>
+    <button id="btn-salvar-item-mercado" type="submit" class="botao-salvar-pagamento">🛒 Adicionar à lista</button>
+    <button id="btn-cancelar-item-mercado" type="button" class="botao-cancelar-pagamento">Cancelar</button>
+  </form>`;
+  $('btn-cancelar-item-mercado').addEventListener('click',()=>renderMercado(c));
+  $('form-novo-item-mercado').addEventListener('submit',async e=>{
+    e.preventDefault();
+    const btn=$('btn-salvar-item-mercado');
+    btn.disabled=true;btn.textContent='Salvando...';
+    try{
+      const r=await chamarApi({action:'inserirItemMercado',token:sessao.token,dados:{referencia:referenciaAtual(),categoria:$('mercado-categoria').value,produto:$('mercado-produto').value.trim(),quantidade:Number($('mercado-quantidade').value||1),unidade:$('mercado-unidade').value,valorUnitario:Number($('mercado-valor-unitario').value||0),observacao:$('mercado-observacao').value.trim()}});
+      assertOk(r);toast('Item adicionado à lista! 🛒');await renderMercado(c);rolarModuloTopo();
+    }catch(err){toast(err.message||'Não foi possível adicionar o item.');btn.disabled=false;btn.textContent='🛒 Adicionar à lista';}
+  });
+}
+
+async function renderFinalizarCompraMercado(c,itens){
+  subtelaModulo='finalizar-compra-mercado';
+  rolarModuloTopo();
+  const selecionados=(itens||[]).filter(x=>String(x.comprado||'NÃO').toUpperCase()==='SIM' && String(x.naLista||'SIM').toUpperCase()!=='NÃO');
+  if(!selecionados.length){
+    toast('Marque primeiro os itens que vocês colocaram no carrinho.');
+    subtelaModulo=null;
+    return;
+  }
+  const estimado=selecionados.reduce((t,x)=>t+Number(x.valorTotal||0),0);
+  const formas=['PIX','CRÉDITO','DÉBITO','DINHEIRO'];
+  c.innerHTML=cabecalho('🧾','Finalizar compra','Registre o mercado de hoje e arquive os itens')+
+  `<form id="form-finalizar-compra-mercado" class="form-pagamento">
+    <div class="painel"><div class="painel-titulo"><h3>${selecionados.length} itens selecionados</h3><strong>${moeda(estimado)}</strong></div><div class="lista-mini-mercado">${selecionados.map(x=>`<div>🛒 ${esc(x.produto)} <span>${Number(x.valorTotal||0)>0?moeda(x.valorTotal):''}</span></div>`).join('')}</div></div>
+    <label class="campo-pagamento"><span>🏪 Onde comprou?</span><input id="compra-mercado-nome" type="text" maxlength="120" placeholder="Ex.: Guanabara"></label>
+    <label class="campo-pagamento"><span>💰 Valor total pago *</span><input id="compra-mercado-valor" type="number" min="0" step="0.01" inputmode="decimal" value="${estimado?estimado.toFixed(2):''}" required></label>
+    <label class="campo-pagamento"><span>💳 Forma de pagamento</span><select id="compra-mercado-forma">${formas.map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label>
+    <label class="campo-pagamento"><span>📎 Comprovante</span><input id="compra-mercado-arquivo" type="file" accept="image/jpeg,image/png,application/pdf"><small class="ajuda-campo">JPG, PNG ou PDF até 10 MB.</small></label>
+    <label class="campo-pagamento"><span>💬 Observação</span><textarea id="compra-mercado-observacao" rows="3" maxlength="300" placeholder="Ex.: faltou o leite e compramos em outro lugar."></textarea></label>
+    <button id="btn-finalizar-compra" type="submit" class="botao-salvar-pagamento">✅ Registrar compra</button>
+    <button id="btn-cancelar-finalizar-compra" type="button" class="botao-cancelar-pagamento">Cancelar</button>
+  </form>`;
+  $('btn-cancelar-finalizar-compra').addEventListener('click',()=>renderMercado(c));
+  $('form-finalizar-compra-mercado').addEventListener('submit',async e=>{
+    e.preventDefault();
+    const btn=$('btn-finalizar-compra');btn.disabled=true;btn.textContent='Registrando...';
+    try{
+      const arquivo=$('compra-mercado-arquivo').files?.[0];
+      const payload={action:'registrarCompra',token:sessao.token,dados:{data:dataInputHoje(),referencia:referenciaAtual(),mercado:$('compra-mercado-nome').value.trim(),tipoCompra:'MENSAL',valorTotal:Number($('compra-mercado-valor').value||0),formaPagamento:$('compra-mercado-forma').value,observacao:$('compra-mercado-observacao').value.trim(),itemIds:selecionados.map(x=>x.id)}};
+      if(arquivo) payload.arquivo=await arquivoParaPayload(arquivo);
+      const r=await chamarApi(payload);assertOk(r);
+      toast('Compra registrada e itens arquivados! 🧾✅');await renderMercado(c);rolarModuloTopo();
+    }catch(err){toast(err.message||'Não foi possível registrar a compra.');btn.disabled=false;btn.textContent='✅ Registrar compra';}
+  });
 }
 
 /* =========================================================

@@ -1208,3 +1208,29 @@ textarea {
     flex:1;
   }
 }
+
+/* =========================================================
+   MERCADO V21
+========================================================= */
+.cabecalho-mercado{position:relative;padding-right:72px}
+.acoes-mercado-topo{position:absolute;right:0;top:0}
+.botao-nova-despesa{border:0;background:var(--laranja);color:#fff;font-weight:800;border-radius:12px;padding:11px 14px;box-shadow:0 5px 18px rgba(237,112,20,.25)}
+.cards-resumo-mercado{grid-template-columns:repeat(3,1fr)}
+.mercado-acoes-principais{padding:11px}
+.barra-mercado-superior{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.barra-mercado-superior .botao-salvar-pagamento{width:auto;margin:0}
+.barra-mercado-superior .ajuda-campo{flex:1;min-width:180px}
+.busca-mercado-wrap{display:flex;align-items:center;gap:8px;border:1px solid #444;background:#0d0d0d;border-radius:12px;padding:0 11px;margin-bottom:10px}
+.busca-mercado-wrap input{flex:1;background:transparent;border:0;outline:0;color:#fff;padding:12px 0;font-size:14px}
+.barra-acoes-mercado{margin-bottom:0;overflow-x:auto;scrollbar-width:none}
+.barra-acoes-mercado::-webkit-scrollbar{display:none}
+.item-mercado-v21{min-height:58px}
+.item-mercado-info{min-width:0}
+.item-mercado-v21 .descricao{font-size:15px}
+.item-mercado-comprado .descricao{text-decoration:line-through;color:#aaa}
+.item-mercado-comprado .meta{color:#777}
+.grid-dois-mercado{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lista-mini-mercado{display:flex;flex-direction:column;gap:7px;font-size:13px;color:#ddd}
+.lista-mini-mercado div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #2a2a2a;padding-bottom:6px}
+.lista-mini-mercado span{font-weight:700;color:var(--laranja)}
+@media(max-width:520px){.cards-resumo-mercado{grid-template-columns:1fr 1fr}.cards-resumo-mercado .card-resumo:last-child{grid-column:1/-1}.cabecalho-mercado{padding-right:66px}.botao-nova-despesa{padding:10px 11px}.grid-dois-mercado{grid-template-columns:1fr 1fr}}
