@@ -8,14 +8,37 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-document.addEventListener('DOMContentLoaded',iniciarApp);
+const LEFE_APP_VERSION='22.4';
+
+async function prepararAtualizacaoLeFe(){
+  try{
+    const chave='lefe-home-cache-reset-'+LEFE_APP_VERSION;
+    if(localStorage.getItem(chave)==='ok') return;
+    localStorage.setItem(chave,'ok');
+    if('caches' in window){
+      const nomes=await caches.keys();
+      await Promise.all(nomes.filter(n=>n.startsWith('lefe-home-') && n!=='lefe-home-v22-4').map(n=>caches.delete(n)));
+    }
+    if('serviceWorker' in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.update().catch(()=>{})));
+    }
+  }catch(e){
+    console.warn('Limpeza de cache ignorada:',e);
+  }
+}
+
+document.addEventListener('DOMContentLoaded',async()=>{
+  await prepararAtualizacaoLeFe();
+  iniciarApp();
+});
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=22.3');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=22.4');
       await reg.update();
-      console.log('LeFe Home PWA v22.3 ativo.',reg.scope);
+      console.log('LeFe Home PWA v22.4 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
