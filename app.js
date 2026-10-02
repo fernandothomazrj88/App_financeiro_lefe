@@ -1,4 +1,4 @@
-const API_URL='https://script.google.com/macros/s/AKfycbxvqJpcrAHSgxDT7-JU_spCaCmJf2oCbOl5qo3ULdH0lWdggkYJqJhkQCLzkib0t_yEvg/exec';
+const API_URL='https://script.google.com/macros/s/AKfycbxvqJpcrAHSgxDT7J-U_spCaCmJf2oCbOl5qo3ULdH0lWdggkJYqJhkQCLzkib0t_yEvg/exec';
 
 let sessao={
   token:localStorage.getItem('vf_token'),
@@ -13,9 +13,9 @@ document.addEventListener('DOMContentLoaded',iniciarApp);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=22.1');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=22.3');
       await reg.update();
-      console.log('LeFe Home PWA v22.1 ativo.',reg.scope);
+      console.log('LeFe Home PWA v22.3 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
