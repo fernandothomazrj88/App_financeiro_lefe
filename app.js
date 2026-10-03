@@ -1462,8 +1462,10 @@ async function renderCasa(c, abaCasa='hoje'){
   assertOk(r);
 
   const tarefas=(r.dados||[]).sort((a,b)=>{
-    const da=new Date(a.dataPrevista||0).getTime();
-    const db=new Date(b.dataPrevista||0).getTime();
+    const chaveA=abaCasa==='historico'?(a.concluidaEm||a.dataPrevista):(a.dataPrevista);
+    const chaveB=abaCasa==='historico'?(b.concluidaEm||b.dataPrevista):(b.dataPrevista);
+    const da=new Date(chaveA||0).getTime();
+    const db=new Date(chaveB||0).getTime();
     if(da!==db)return da-db;
     return String(a.tarefa||'').localeCompare(String(b.tarefa||''),'pt-BR');
   });
@@ -1551,15 +1553,16 @@ async function renderCasa(c, abaCasa='hoje'){
   }
 
   if(abaCasa==='historico'){
-    alvo.innerHTML=`<div class="painel"><div class="painel-titulo"><h3>🕘 Histórico</h3><span>${tarefas.length}</span></div><div class="lista-modulo">${tarefas.length?tarefas.map(x=>itemTarefaCasaV25(x,true)).join(''):'<div class="vazio">Nenhuma tarefa concluída nos últimos 90 dias.</div>'}</div></div>`;
+    alvo.innerHTML=`<div class="painel"><div class="painel-titulo"><h3>🕘 Histórico</h3><span>${tarefas.length}</span></div><div class="lista-modulo">${tarefas.length?tarefas.map(x=>itemTarefaCasaV25(x,true,true)).join(''):'<div class="vazio">Nenhuma tarefa concluída nos últimos 90 dias.</div>'}</div></div>`;
   }
 
   ligarBotoesTarefaCasa(c);
 }
 
-function itemTarefaCasaV25(x,mostrarData){
+function itemTarefaCasaV25(x,mostrarData,modoHistorico=false){
   const status=String(x.status||'PENDENTE').toUpperCase();
-  const data=mostrarData&&x.dataPrevista?`<span class="data-tarefa-casa">${dataBR(x.dataPrevista)}</span>`:'';
+  const dataBase=modoHistorico?(x.concluidaEm||x.dataPrevista):x.dataPrevista;
+  const data=mostrarData&&dataBase?`<span class="data-tarefa-casa">${dataBR(dataBase)}</span>`:'';
   const botao=status==='PENDENTE'?`<button class="botao-concluir-tarefa" data-concluir-tarefa="${escAttr(x.id)}">✓ Concluir</button>`:'';
   return `<div class="item-lista item-tarefa-casa">
     <div class="info-tarefa-casa"><div class="descricao">${esc(x.tarefa||'Sem descrição')}</div><div class="meta">${esc(x.responsavel||'Ambos')}${data?' • '+data:''}</div>${x.observacao?`<div class="observacao-tarefa-casa">${esc(x.observacao)}</div>`:''}<span class="badge badge-casa ${status.toLowerCase()}">${esc(status.replaceAll('_',' '))}</span></div>
