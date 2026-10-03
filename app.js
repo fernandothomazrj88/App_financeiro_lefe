@@ -1470,6 +1470,11 @@ async function renderCasa(c, abaCasa='hoje'){
     return String(a.tarefa||'').localeCompare(String(b.tarefa||''),'pt-BR');
   });
 
+  // Guarda as tarefas já carregadas na tela.
+  // A edição usa esse registro local para evitar uma nova consulta
+  // com intervalo gigante (que poderia tentar gerar décadas de tarefas).
+  c.__tarefasCasa=tarefas;
+
   const pendentes=tarefas.filter(x=>String(x.status||'').toUpperCase()==='PENDENTE').length;
   const concluidas=tarefas.filter(x=>String(x.status||'').toUpperCase()==='CONCLUIDA').length;
 
@@ -1596,8 +1601,11 @@ function ligarBotoesTarefaCasa(c){
   c.querySelectorAll('[data-editar-tarefa]').forEach(btn=>{
     btn.onclick=async()=>{
       const id=btn.dataset.editarTarefa;
-      const r=await chamarApi({action:'listarTarefasCasa',token:sessao.token,inicio:'2000-01-01',fim:'2100-12-31'});
-      try{assertOk(r);const item=(r.dados||[]).find(x=>String(x.id)===String(id));if(!item)throw new Error('Tarefa não encontrada.');await renderEditarTarefaCasa(c,item);}catch(e){toast(e.message||'Não foi possível abrir a tarefa.');}
+      try{
+        const item=(c.__tarefasCasa||[]).find(x=>String(x.id)===String(id));
+        if(!item)throw new Error('Tarefa não encontrada na tela atual. Atualize a página e tente novamente.');
+        await renderEditarTarefaCasa(c,item);
+      }catch(e){toast(e.message||'Não foi possível abrir a tarefa.');}
     };
   });
 
