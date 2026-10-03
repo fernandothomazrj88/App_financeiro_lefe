@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='24.1';
+const LEFE_APP_VERSION='26.0';
 
 async function prepararAtualizacaoLeFe(){
   try{
@@ -17,7 +17,7 @@ async function prepararAtualizacaoLeFe(){
     localStorage.setItem(chave,'ok');
     if('caches' in window){
       const nomes=await caches.keys();
-      await Promise.all(nomes.filter(n=>n.startsWith('lefe-home-') && n!=='lefe-home-v24-1').map(n=>caches.delete(n)));
+      await Promise.all(nomes.filter(n=>n.startsWith('lefe-home-') && n!=='lefe-home-v26-0').map(n=>caches.delete(n)));
     }
     if('serviceWorker' in navigator){
       const regs=await navigator.serviceWorker.getRegistrations();
@@ -36,9 +36,9 @@ document.addEventListener('DOMContentLoaded',async()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=24.1');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.0');
       await reg.update();
-      console.log('LeFe Home PWA v24.1 ativo.',reg.scope);
+      console.log('LeFe Home PWA v26.0 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
@@ -2055,13 +2055,114 @@ async function renderRelatorios(c){
   c.innerHTML=cabecalho('📊','Relatórios','Resumo da vida financeira no mês')+`<div class="cards-resumo"><div class="card-resumo"><small>Entradas</small><strong class="verde">${moeda(d.entradas)}</strong></div><div class="card-resumo"><small>Saídas</small><strong class="vermelho">${moeda(d.saidas)}</strong></div><div class="card-resumo"><small>Saldo</small><strong class="${d.saldo>=0?'verde':'vermelho'}">${moeda(d.saldo)}</strong></div><div class="card-resumo"><small>A pagar</small><strong class="amarelo">${moeda(d.aPagar)}</strong></div></div><div class="painel"><div class="painel-titulo"><h3>Comparativo do mês</h3></div><div class="grafico-barras"><div class="barra" style="height:${Math.max(10,d.entradas/max*100)}%"><span>Entradas</span></div><div class="barra" style="height:${Math.max(10,d.saidas/max*100)}%;background:#a54b17"><span>Saídas</span></div></div></div>`;
 }
 
+let calendarioEstado={ano:new Date().getFullYear(),mes:new Date().getMonth(),diaSelecionado:null};
+let calendarioFormId=null;
+
 async function renderCalendario(c){
   subtelaModulo=null;
-  const r=await chamarApi({action:'listarFinanceiro',token:sessao.token,referencia:referenciaAtual()});
+  const ano=calendarioEstado.ano, mes=calendarioEstado.mes;
+  const inicio=chaveDataLocalFront(new Date(ano,mes,1));
+  const fim=chaveDataLocalFront(new Date(ano,mes+1,0));
+  const r=await chamarApi({action:'listarCalendario',token:sessao.token,inicio,fim});
   assertOk(r);
-  const itens=(r.dados||[]).filter(x=>x.tipo==='DESPESA'&&x.vencimento).sort((a,b)=>new Date(a.vencimento)-new Date(b.vencimento));
-  c.innerHTML=cabecalho('📅','Calendário','Vencimentos e contas futuras')+`<div class="painel"><div class="painel-titulo"><h3>Vencimentos do mês</h3><span>${itens.length}</span></div><div class="lista-modulo">${itens.length?itens.map(itemFinanceiro).join(''):'<div class="vazio">Nenhum vencimento cadastrado.</div>'}</div></div>`;
+  const itens=r.dados?.eventos||[];
+  const eventosMes=itens.filter(x=>x.origem==='CALENDARIO');
+  const casaMes=itens.filter(x=>x.origem==='CASA');
+  const financeiroMes=itens.filter(x=>x.origem==='FINANCEIRO');
+  const hoje=chaveDataLocalFront(new Date());
+  if(!calendarioEstado.diaSelecionado || !String(calendarioEstado.diaSelecionado).startsWith(`${ano}-${String(mes+1).padStart(2,'0')}`)){
+    calendarioEstado.diaSelecionado=(hoje>=inicio&&hoje<=fim)?hoje:inicio;
+  }
+  const diasSemana=['SEG','TER','QUA','QUI','SEX','SÁB','DOM'];
+  const primeiro=(new Date(ano,mes,1).getDay()+6)%7;
+  const ultimo=new Date(ano,mes+1,0).getDate();
+  const porDia={};
+  itens.forEach(x=>{const k=chaveDataLocalFront(x.data);(porDia[k]??=[]).push(x)});
+  let celulas='';
+  for(let i=0;i<primeiro;i++) celulas+='<div class="cal-vazio-dia"></div>';
+  for(let d=1;d<=ultimo;d++){
+    const k=chaveDataLocalFront(new Date(ano,mes,d));
+    const lista=porDia[k]||[];
+    const cls=[k===hoje?'hoje':'',k===calendarioEstado.diaSelecionado?'selecionado':''].filter(Boolean).join(' ');
+    celulas+=`<button type="button" class="cal-dia ${cls}" data-cal-dia="${k}"><strong>${d}</strong>${lista.slice(0,3).map(calChip).join('')}${lista.length>3?`<span class="cal-mais">+${lista.length-3}</span>`:''}</button>`;
+  }
+  const selecionados=(porDia[calendarioEstado.diaSelecionado]||[]).sort(calOrdenarItens);
+  const tituloMes=new Date(ano,mes,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  const diaTitulo=calendarioEstado.diaSelecionado?dataBR(calendarioEstado.diaSelecionado):'';
+  const proximos=itens.filter(x=>chaveDataLocalFront(x.data)>=hoje).sort(calOrdenarItens).slice(0,8);
+
+  c.innerHTML=cabecalho('📅','Calendário','Compromissos, tarefas e vencimentos')+`
+    <div class="cal-topo-acoes">
+      <button type="button" class="botao-cal-principal" id="btn-novo-evento-cal">＋ Novo evento</button>
+      <button type="button" class="botao-cal-secundario" id="btn-cal-hoje">Hoje</button>
+    </div>
+    <div class="cards-resumo cal-resumo">
+      <div class="card-resumo"><small>Eventos</small><strong class="laranja">${eventosMes.length}</strong></div>
+      <div class="card-resumo"><small>Casa</small><strong class="verde">${casaMes.length}</strong></div>
+      <div class="card-resumo"><small>Financeiro</small><strong class="amarelo">${financeiroMes.length}</strong></div>
+    </div>
+    <div id="cal-form-wrap"></div>
+    <div class="painel calendario-principal">
+      <div class="cal-navegacao"><button type="button" class="cal-nav" id="cal-mes-anterior">‹</button><h3>${esc(tituloMes)}</h3><button type="button" class="cal-nav" id="cal-mes-proximo">›</button></div>
+      <div class="cal-dias-semana">${diasSemana.map(x=>`<span>${x}</span>`).join('')}</div>
+      <div class="cal-grade">${celulas}</div>
+    </div>
+    <div id="cal-detalhe-dia" class="painel">
+      <div class="painel-titulo"><h3>📌 ${diaTitulo}</h3><span>${selecionados.length}</span></div>
+      <div class="lista-modulo">${selecionados.length?selecionados.map(itemCalendarioCard).join(''):'<div class="vazio">Nenhum compromisso neste dia.</div>'}</div>
+    </div>
+    <div class="painel">
+      <div class="painel-titulo"><h3>⏭️ Próximos</h3><span>${proximos.length}</span></div>
+      <div class="lista-modulo">${proximos.length?proximos.map(itemCalendarioCard).join(''):'<div class="vazio">Nenhum item próximo.</div>'}</div>
+    </div>`;
+
+  $('btn-novo-evento-cal').onclick=async()=>{calendarioFormId=null;renderCalendarioFormulario(c,{dataInicio:calendarioEstado.diaSelecionado||hoje});};
+  $('btn-cal-hoje').onclick=async()=>{const d=new Date();calendarioEstado.ano=d.getFullYear();calendarioEstado.mes=d.getMonth();calendarioEstado.diaSelecionado=chaveDataLocalFront(d);await renderCalendario(c);rolarModuloTopo();};
+  $('cal-mes-anterior').onclick=async()=>{calendarioEstado.mes--;if(calendarioEstado.mes<0){calendarioEstado.mes=11;calendarioEstado.ano--;}calendarioEstado.diaSelecionado=null;await renderCalendario(c);};
+  $('cal-mes-proximo').onclick=async()=>{calendarioEstado.mes++;if(calendarioEstado.mes>11){calendarioEstado.mes=0;calendarioEstado.ano++;}calendarioEstado.diaSelecionado=null;await renderCalendario(c);};
+  c.querySelectorAll('[data-cal-dia]').forEach(btn=>btn.onclick=async()=>{calendarioEstado.diaSelecionado=btn.dataset.calDia;await renderCalendario(c);});
+  c.querySelectorAll('[data-cal-editar]').forEach(btn=>btn.onclick=async()=>{const id=btn.dataset.calEditar;const item=itens.find(x=>x.origem==='CALENDARIO'&&x.serieId===id);if(item){calendarioFormId=id;renderCalendarioFormulario(c,item);}});
+  c.querySelectorAll('[data-cal-excluir]').forEach(btn=>btn.onclick=async()=>{const id=btn.dataset.calExcluir;if(!confirm('Excluir este evento? Para eventos recorrentes, toda a série será desativada.'))return;try{const rr=await chamarApi({action:'excluirEventoCalendario',token:sessao.token,id});assertOk(rr);toast('Evento excluído. 🗑️');await renderCalendario(c);}catch(e){toast(e.message||'Não foi possível excluir o evento.');}});
 }
+
+function renderCalendarioFormulario(c,item={}){
+  const wrap=$('cal-form-wrap');
+  if(!wrap)return;
+  const dataInicio=item.dataInicio||item.data||dataInputHoje();
+  const dataFim=item.dataFim||'';
+  wrap.innerHTML=`<div class="painel cal-form"><div class="painel-titulo"><h3>${calendarioFormId?'✏️ Editar evento':'➕ Novo evento'}</h3><button type="button" class="cal-fechar" id="cal-form-fechar">✕</button></div><div class="form-pagamento">
+    <label class="campo-pagamento"><span>Título</span><input id="cal-titulo" type="text" maxlength="120" value="${escAttr(item.titulo||'')}" placeholder="Ex.: Jantar, consulta, compromisso..."></label>
+    <label class="campo-pagamento"><span>Descrição</span><textarea id="cal-descricao" maxlength="500" placeholder="Detalhes opcionais">${esc(item.descricao||'')}</textarea></label>
+    <div class="cal-form-grid"><label class="campo-pagamento"><span>Data</span><input id="cal-data" type="date" value="${escAttr(dataInputDateLocal(dataInicio))}"></label><label class="campo-pagamento"><span>Horário</span><input id="cal-hora" type="time" value="${escAttr(item.hora||'')}"></label></div>
+    <div class="cal-form-grid"><label class="campo-pagamento"><span>Categoria</span><select id="cal-categoria"><option value="PESSOAL">Pessoal</option><option value="CASA">Casa</option><option value="COMPROMISSO">Compromisso</option><option value="OUTRO">Outro</option></select></label><label class="campo-pagamento"><span>Responsável</span><select id="cal-responsavel"><option>Fernando</option><option>Letícia</option><option>Ambos</option></select></label></div>
+    <label class="campo-pagamento"><span>Repetição</span><select id="cal-recorrencia"><option value="NENHUMA">Não repetir</option><option value="DIARIA">Todos os dias</option><option value="SEMANAL">Toda semana</option><option value="MENSAL">Todo mês</option></select></label>
+    <label class="campo-pagamento"><span>Repetir até (opcional)</span><input id="cal-data-fim" type="date" value="${escAttr(dataInputDateLocal(dataFim))}"></label>
+    <div class="cal-form-acoes"><button type="button" class="botao-cal-secundario" id="cal-form-cancelar">Cancelar</button><button type="button" class="botao-cal-principal" id="cal-form-salvar">💾 Salvar evento</button></div>
+  </div></div>`;
+  $('cal-categoria').value=item.categoria||'PESSOAL';
+  $('cal-responsavel').value=item.responsavel||'Ambos';
+  $('cal-recorrencia').value=item.recorrencia||'NENHUMA';
+  const fechar=()=>{calendarioFormId=null;wrap.innerHTML='';};
+  $('cal-form-fechar').onclick=fechar; $('cal-form-cancelar').onclick=fechar;
+  $('cal-form-salvar').onclick=async()=>{
+    const btn=$('cal-form-salvar');btn.disabled=true;btn.textContent='Salvando...';
+    try{
+      const dados={titulo:$('cal-titulo').value.trim(),descricao:$('cal-descricao').value.trim(),dataInicio:$('cal-data').value,hora:$('cal-hora').value,categoria:$('cal-categoria').value,responsavel:$('cal-responsavel').value,recorrencia:$('cal-recorrencia').value,dataFim:$('cal-data-fim').value};
+      if(!dados.titulo)throw new Error('Informe o título do evento.');
+      const acao=calendarioFormId?'atualizarEventoCalendario':'inserirEventoCalendario';
+      const payload={action:acao,token:sessao.token,dados};if(calendarioFormId)payload.id=calendarioFormId;
+      const rr=await chamarApi(payload);assertOk(rr);toast(calendarioFormId?'Evento atualizado! ✅':'Evento criado! 📅');calendarioFormId=null;await renderCalendario(c);rolarModuloTopo();
+    }catch(e){toast(e.message||'Não foi possível salvar o evento.');btn.disabled=false;btn.textContent='💾 Salvar evento';}
+  };
+  wrap.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function calChip(x){const ic=x.origem==='CASA'?'🏠':x.origem==='FINANCEIRO'?'💰':'📌';return `<span class="cal-chip ${String(x.origem||'').toLowerCase()}">${ic} ${esc(x.titulo).slice(0,18)}</span>`;}
+function itemCalendarioCard(x){const ic=x.origem==='CASA'?'🏠':x.origem==='FINANCEIRO'?'💰':'📌';const meta=[x.hora||'',x.responsavel||'',x.origem==='CASA'?(x.status||''):''].filter(Boolean).join(' • ');const valor=x.origem==='FINANCEIRO'?`<strong class="valor">${moeda(x.valor)}</strong>`:'';return `<div class="item-lista cal-item-card"><div><div class="descricao">${ic} ${esc(x.titulo)}</div><div class="meta">${esc(meta||'Calendário')}${x.recorrencia&&x.recorrencia!=='NENHUMA'?' • 🔁 '+esc(nomeRecorrencia(x.recorrencia)):''}</div>${x.descricao?`<div class="cal-descricao">${esc(x.descricao)}</div>`:''}${x.status?`<span class="badge ${String(x.status).toLowerCase()==='concluida'?'pago':'apagar'}">${esc(x.status)}</span>`:''}</div><div class="cal-item-direita">${valor}${x.editavel?`<div class="cal-acoes"><button type="button" class="cal-mini" data-cal-editar="${escAttr(x.serieId||x.id)}">✏️</button><button type="button" class="cal-mini perigo" data-cal-excluir="${escAttr(x.serieId||x.id)}">🗑️</button></div>`:''}</div></div>`;}
+function nomeRecorrencia(v){return ({DIARIA:'diária',SEMANAL:'semanal',MENSAL:'mensal'})[v]||v;}
+function calOrdenarItens(a,b){const da=chaveDataLocalFront(a.data),db=chaveDataLocalFront(b.data);if(da!==db)return da.localeCompare(db);return String(a.hora||'').localeCompare(String(b.hora||''))||String(a.titulo||'').localeCompare(String(b.titulo||''),'pt-BR');}
+function chaveDataLocalFront(v){if(v instanceof Date)return dataInputDateLocal(v);const s=String(v||'');if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const d=new Date(s);return isNaN(d)?'':dataInputDateLocal(d);}
+function dataInputDateLocal(v){if(!v)return '';if(/^\d{4}-\d{2}-\d{2}$/.test(String(v)))return String(v);const d=v instanceof Date?v:new Date(v);if(isNaN(d))return '';return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 
 async function renderComprovantes(c){
   subtelaModulo=null;
