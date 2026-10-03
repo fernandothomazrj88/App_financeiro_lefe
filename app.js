@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='26.0';
+const LEFE_APP_VERSION='26.3';
 
 async function prepararAtualizacaoLeFe(){
   try{
@@ -17,7 +17,7 @@ async function prepararAtualizacaoLeFe(){
     localStorage.setItem(chave,'ok');
     if('caches' in window){
       const nomes=await caches.keys();
-      await Promise.all(nomes.filter(n=>n.startsWith('lefe-home-') && n!=='lefe-home-v26-0').map(n=>caches.delete(n)));
+      await Promise.all(nomes.filter(n=>n.startsWith('lefe-home-') && n!=='lefe-home-v26-3').map(n=>caches.delete(n)));
     }
     if('serviceWorker' in navigator){
       const regs=await navigator.serviceWorker.getRegistrations();
@@ -36,9 +36,9 @@ document.addEventListener('DOMContentLoaded',async()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.0');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.3');
       await reg.update();
-      console.log('LeFe Home PWA v26.0 ativo.',reg.scope);
+      console.log('LeFe Home PWA v26.3 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
@@ -1563,10 +1563,11 @@ function itemTarefaCasaV25(x,mostrarData,modoHistorico=false){
   const status=String(x.status||'PENDENTE').toUpperCase();
   const dataBase=modoHistorico?(x.concluidaEm||x.dataPrevista):x.dataPrevista;
   const data=mostrarData&&dataBase?`<span class="data-tarefa-casa">${dataBR(dataBase)}</span>`:'';
-  const botao=status==='PENDENTE'?`<button class="botao-concluir-tarefa" data-concluir-tarefa="${escAttr(x.id)}">✓ Concluir</button>`:'';
+  const botaoConcluir=status==='PENDENTE'?`<button class="botao-concluir-tarefa" data-concluir-tarefa="${escAttr(x.id)}">✓ Concluir</button>`:'';
+  const botoesEdicao=`<div class="acoes-tarefa-casa"><button type="button" class="botao-editar-tarefa" data-editar-tarefa="${escAttr(x.id)}">✏️ Editar</button><button type="button" class="botao-excluir-tarefa" data-excluir-tarefa="${escAttr(x.id)}">🗑️ Excluir</button></div>`;
   return `<div class="item-lista item-tarefa-casa">
     <div class="info-tarefa-casa"><div class="descricao">${esc(x.tarefa||'Sem descrição')}</div><div class="meta">${esc(x.responsavel||'Ambos')}${data?' • '+data:''}</div>${x.observacao?`<div class="observacao-tarefa-casa">${esc(x.observacao)}</div>`:''}<span class="badge badge-casa ${status.toLowerCase()}">${esc(status.replaceAll('_',' '))}</span></div>
-    <div class="lado-tarefa-casa">${botao}</div>
+    <div class="lado-tarefa-casa">${botaoConcluir}${botoesEdicao}</div>
   </div>`;
 }
 
@@ -1591,6 +1592,51 @@ function ligarBotoesTarefaCasa(c){
       }catch(e){toast(e.message||'Não foi possível concluir a tarefa.');btn.disabled=false;}
     };
   });
+
+  c.querySelectorAll('[data-editar-tarefa]').forEach(btn=>{
+    btn.onclick=async()=>{
+      const id=btn.dataset.editarTarefa;
+      const r=await chamarApi({action:'listarTarefasCasa',token:sessao.token,inicio:'2000-01-01',fim:'2100-12-31'});
+      try{assertOk(r);const item=(r.dados||[]).find(x=>String(x.id)===String(id));if(!item)throw new Error('Tarefa não encontrada.');await renderEditarTarefaCasa(c,item);}catch(e){toast(e.message||'Não foi possível abrir a tarefa.');}
+    };
+  });
+
+  c.querySelectorAll('[data-excluir-tarefa]').forEach(btn=>{
+    btn.onclick=async()=>{
+      const id=btn.dataset.excluirTarefa;
+      if(!confirm('Excluir esta tarefa? Ela será removida das listas do Casa, sem apagar o registro da planilha.'))return;
+      btn.disabled=true;
+      try{
+        const rr=await chamarApi({action:'excluirTarefaCasa',token:sessao.token,id});
+        assertOk(rr); toast('Tarefa excluída! 🗑️'); await renderCasa(c,'hoje');
+      }catch(e){toast(e.message||'Não foi possível excluir a tarefa.');btn.disabled=false;}
+    };
+  });
+}
+
+async function renderEditarTarefaCasa(c,item){
+  subtelaModulo='editar-tarefa-casa';
+  rolarModuloTopo();
+  c.innerHTML=cabecalho('✏️','Editar tarefa','Atualize os dados desta tarefa da casa')+`<form id="form-editar-tarefa-casa" class="form-pagamento form-nova-tarefa-casa">
+    <label class="campo-pagamento"><span>📝 Tarefa *</span><input id="casa-editar-tarefa" type="text" maxlength="120" value="${escAttr(item.tarefa||'')}" required></label>
+    <label class="campo-pagamento"><span>📅 Data *</span><input id="casa-editar-data" type="date" value="${escAttr(dataInputDateLocal(item.dataPrevista))}" required></label>
+    <label class="campo-pagamento"><span>👤 Responsável *</span><select id="casa-editar-responsavel" required><option value="Fernando">Fernando</option><option value="Letícia">Letícia</option><option value="Ambos">Ambos</option></select></label>
+    <label class="campo-pagamento"><span>💬 Observação</span><textarea id="casa-editar-observacao" maxlength="300">${esc(item.observacao||'')}</textarea></label>
+    <div class="painel" style="margin:0 0 10px;padding:10px"><small class="meta">Status atual: <strong>${esc(String(item.status||'PENDENTE'))}</strong></small></div>
+    <div class="cal-form-acoes"><button id="btn-cancelar-edicao-casa" type="button" class="botao-cancelar-pagamento">Cancelar</button><button id="btn-salvar-edicao-casa" type="submit" class="botao-salvar-pagamento">💾 Salvar alterações</button></div>
+  </form>`;
+  $('casa-editar-responsavel').value=item.responsavel||'Ambos';
+  $('btn-cancelar-edicao-casa').onclick=async()=>{await renderCasa(c,'hoje');};
+  $('form-editar-tarefa-casa').onsubmit=async e=>{
+    e.preventDefault();
+    const botao=$('btn-salvar-edicao-casa');botao.disabled=true;botao.textContent='Salvando...';
+    try{
+      const dados={tarefa:$('casa-editar-tarefa').value.trim(),dataPrevista:$('casa-editar-data').value,responsavel:$('casa-editar-responsavel').value,observacao:$('casa-editar-observacao').value.trim()};
+      if(!dados.tarefa||!dados.dataPrevista)throw new Error('Informe tarefa e data.');
+      const rr=await chamarApi({action:'atualizarTarefaCasa',token:sessao.token,id:item.id,dados});
+      assertOk(rr);toast('Tarefa atualizada! ✅');await renderCasa(c,'hoje');rolarModuloTopo();
+    }catch(e){toast(e.message||'Não foi possível atualizar a tarefa.');botao.disabled=false;botao.textContent='💾 Salvar alterações';}
+  };
 }
 
 async function renderNovaTarefaCasa(c){
