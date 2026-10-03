@@ -1,4 +1,4 @@
-const API_URL='https://script.google.com/macros/s/AKfycbxvqJpcrAHSgxTD7-JU_spCaCmJf2oCbOl5qo3ULdH0lWdggkJYqJhkQCLzkib0t_yEvg/exec';
+const API_URL='https://script.google.com/macros/s/AKfycbxvqJpcrAHSgxTDJ7-JU_spCaCmJf2oCbOl5qo3ULdH0lWdggkJYqJhkQCLzkib0t_yEvg/exec';
 
 let sessao={
   token:localStorage.getItem('vf_token'),
@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='26.6';
+const LEFE_APP_VERSION='26.7';
 
 async function prepararAtualizacaoLeFe(){
   try{
@@ -17,7 +17,7 @@ async function prepararAtualizacaoLeFe(){
     localStorage.setItem(chave,'ok');
     if('caches' in window){
       const nomes=await caches.keys();
-      await Promise.all(nomes.filter(n=>n.startsWith('lefe-home-') && n!=='lefe-home-v26-6').map(n=>caches.delete(n)));
+      await Promise.all(nomes.filter(n=>n.startsWith('lefe-home-') && n!=='lefe-home-v26-7').map(n=>caches.delete(n)));
     }
     if('serviceWorker' in navigator){
       const regs=await navigator.serviceWorker.getRegistrations();
@@ -36,9 +36,9 @@ document.addEventListener('DOMContentLoaded',async()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.6');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.7');
       await reg.update();
-      console.log('LeFe Home PWA v26.6 ativo.',reg.scope);
+      console.log('LeFe Home PWA v26.7 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
