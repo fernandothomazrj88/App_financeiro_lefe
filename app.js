@@ -1439,168 +1439,174 @@ function imprimirListaMercado(itens){
    CASA
 ========================================================= */
 
-async function renderCasa(c){
+async function renderCasa(c, abaCasa='hoje'){
   subtelaModulo=null;
 
-  const hoje=dataInputHoje();
-  const fim=dataInputOffset(14);
+  const abas=[
+    ['hoje','📅 Hoje'],
+    ['calendario','🗓️ Calendário'],
+    ['tarefas','✓ Tarefas'],
+    ['rotinas','🔁 Rotinas'],
+    ['historico','🕘 Histórico']
+  ];
 
+  const hoje=dataInputHoje();
+  const fim=dataInputOffset(30);
   const r=await chamarApi({
     action:'listarTarefasCasa',
     token:sessao.token,
-    inicio:hoje,
-    fim
+    inicio:abaCasa==='historico'?dataInputOffset(-90):hoje,
+    fim:abaCasa==='historico'?hoje:fim,
+    status:abaCasa==='historico'?'CONCLUIDA':''
   });
   assertOk(r);
 
   const tarefas=(r.dados||[]).sort((a,b)=>{
     const da=new Date(a.dataPrevista||0).getTime();
     const db=new Date(b.dataPrevista||0).getTime();
-    if(da!==db) return da-db;
+    if(da!==db)return da-db;
     return String(a.tarefa||'').localeCompare(String(b.tarefa||''),'pt-BR');
   });
 
-  const hojeTarefas=tarefas.filter(x=>String(x.dataPrevista||'').slice(0,10)===hoje);
-  const proximas=tarefas.filter(x=>String(x.dataPrevista||'').slice(0,10)>hoje);
   const pendentes=tarefas.filter(x=>String(x.status||'').toUpperCase()==='PENDENTE').length;
+  const concluidas=tarefas.filter(x=>String(x.status||'').toUpperCase()==='CONCLUIDA').length;
 
   c.innerHTML=
     `<div class="cabecalho-casa">
       ${cabecalho('🏠','Casa','Rotinas, tarefas e limpeza')}
       <button id="btn-nova-tarefa-casa" type="button" class="botao-nova-tarefa-casa">＋ Tarefa</button>
     </div>`+
-    `<div class="cards-resumo cards-resumo-casa">
-      <div class="card-resumo"><small>Hoje</small><strong class="laranja">${hojeTarefas.length}</strong></div>
-      <div class="card-resumo"><small>Pendentes</small><strong class="amarelo">${pendentes}</strong></div>
-    </div>`+
-    `<div class="painel">
-      <div class="painel-titulo"><h3>📅 Hoje</h3><span>${hojeTarefas.length}</span></div>
-      <div class="lista-modulo">
-        ${hojeTarefas.length?hojeTarefas.map(x=>itemTarefaCasa(x,false)).join(''):'<div class="vazio">Nenhuma tarefa para hoje. 🎉</div>'}
-      </div>
-    </div>`+
-    `<div class="painel">
-      <div class="painel-titulo"><h3>🗓️ Próximos 14 dias</h3><span>${proximas.length}</span></div>
-      <div class="lista-modulo">
-        ${proximas.length?proximas.map(x=>itemTarefaCasa(x,true)).join(''):'<div class="vazio">Nenhuma tarefa próxima cadastrada.</div>'}
-      </div>
-    </div>`;
+    `<div class="tabs-casa">${abas.map(([id,nome])=>`<button type="button" class="tab-casa ${id===abaCasa?'ativo':''}" data-aba-casa="${id}">${nome}</button>`).join('')}</div>`+
+    `<div id="conteudo-casa-v25"></div>`;
 
-  $('btn-nova-tarefa-casa').addEventListener('click',async()=>{
-    await renderNovaTarefaCasa(c);
-  });
+  $('btn-nova-tarefa-casa').addEventListener('click',async()=>{await renderNovaTarefaCasa(c);});
+  c.querySelectorAll('[data-aba-casa]').forEach(btn=>btn.addEventListener('click',async()=>{
+    await renderCasa(c,btn.dataset.abaCasa);
+  }));
 
+  const alvo=$('conteudo-casa-v25');
+
+  if(abaCasa==='hoje'){
+    const hojeTarefas=tarefas.filter(x=>String(x.dataPrevista||'').slice(0,10)===hoje);
+    const proximas=tarefas.filter(x=>String(x.dataPrevista||'').slice(0,10)>hoje).slice(0,10);
+    alvo.innerHTML=
+      `<div class="cards-resumo cards-resumo-casa">
+        <div class="card-resumo"><small>Hoje</small><strong class="laranja">${hojeTarefas.length}</strong></div>
+        <div class="card-resumo"><small>Pendentes</small><strong class="amarelo">${pendentes}</strong></div>
+        <div class="card-resumo"><small>Concluídas</small><strong class="verde">${concluidas}</strong></div>
+      </div>`+
+      `<div class="painel"><div class="painel-titulo"><h3>📅 Tarefas de hoje</h3><span>${hojeTarefas.length}</span></div><div class="lista-modulo">${hojeTarefas.length?hojeTarefas.map(x=>itemTarefaCasaV25(x,false)).join(''):'<div class="vazio">Nenhuma tarefa para hoje. 🎉</div>'}</div></div>`+
+      `<div class="painel"><div class="painel-titulo"><h3>⏭️ Próximas tarefas</h3><span>${proximas.length}</span></div><div class="lista-modulo">${proximas.length?proximas.map(x=>itemTarefaCasaV25(x,true)).join(''):'<div class="vazio">Nenhuma tarefa próxima cadastrada.</div>'}</div></div>`;
+  }
+
+  if(abaCasa==='tarefas'){
+    alvo.innerHTML=
+      `<div class="painel casa-filtros"><div class="filtros-casa-linha">
+        <button class="filtro-casa ativo" data-status-casa="TODAS">Todas</button>
+        <button class="filtro-casa" data-status-casa="PENDENTE">Pendentes</button>
+        <button class="filtro-casa" data-status-casa="CONCLUIDA">Concluídas</button>
+      </div></div>`+
+      `<div class="painel"><div class="painel-titulo"><h3>✓ Próximos 30 dias</h3><span>${tarefas.length}</span></div><div id="lista-todas-casa" class="lista-modulo">${tarefas.length?tarefas.map(x=>itemTarefaCasaV25(x,true)).join(''):'<div class="vazio">Nenhuma tarefa encontrada.</div>'}</div></div>`;
+    c.querySelectorAll('[data-status-casa]').forEach(btn=>btn.addEventListener('click',()=>{
+      c.querySelectorAll('[data-status-casa]').forEach(b=>b.classList.remove('ativo'));
+      btn.classList.add('ativo');
+      const st=btn.dataset.statusCasa;
+      const lista=st==='TODAS'?tarefas:tarefas.filter(x=>String(x.status||'').toUpperCase()===st);
+      $('lista-todas-casa').innerHTML=lista.length?lista.map(x=>itemTarefaCasaV25(x,true)).join(''):'<div class="vazio">Nenhuma tarefa nesse filtro.</div>';
+      ligarBotoesTarefaCasa(c);
+    }));
+  }
+
+  if(abaCasa==='calendario'){
+    const anoMes=new Date();
+    const ano=anoMes.getFullYear(), mes=anoMes.getMonth();
+    const inicioMes=new Date(ano,mes,1);
+    const fimMes=new Date(ano,mes+1,0);
+    const chaveInicio=`${ano}-${String(mes+1).padStart(2,'0')}-01`;
+    const chaveFim=`${ano}-${String(mes+1).padStart(2,'0')}-${String(fimMes.getDate()).padStart(2,'0')}`;
+    const doMes=(r.dados||[]).filter(x=>{const k=String(x.dataPrevista||'').slice(0,10);return k>=chaveInicio&&k<=chaveFim;});
+    const porDia={}; doMes.forEach(x=>{const k=String(x.dataPrevista||'').slice(0,10);(porDia[k]??=[]).push(x);});
+    const primeiro=(inicioMes.getDay()+6)%7;
+    let celulas='';
+    for(let i=0;i<primeiro;i++)celulas+='<div class="dia-calendario vazio-calendario"></div>';
+    for(let d=1;d<=fimMes.getDate();d++){
+      const k=`${ano}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const lista=porDia[k]||[];
+      const classes=[k===hoje?'hoje':'',lista.length?'com-tarefa':''].filter(Boolean).join(' ');
+      celulas+=`<button type="button" class="dia-calendario ${classes}" data-dia-casa="${k}"><strong>${d}</strong>${lista.length?`<span>${lista.length}</span>`:''}</button>`;
+    }
+    alvo.innerHTML=`<div class="painel calendario-casa-v25"><div class="calendario-titulo"><h3>🗓️ ${inicioMes.toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</h3></div><div class="dias-semana"><span>SEG</span><span>TER</span><span>QUA</span><span>QUI</span><span>SEX</span><span>SÁB</span><span>DOM</span></div><div class="grade-calendario">${celulas}</div></div><div id="detalhe-dia-casa" class="painel"><div class="vazio">Toque em um dia para ver as tarefas.</div></div>`;
+    c.querySelectorAll('[data-dia-casa]').forEach(btn=>btn.addEventListener('click',()=>{
+      const k=btn.dataset.diaCasa, lista=porDia[k]||[];
+      $('detalhe-dia-casa').innerHTML=`<div class="painel-titulo"><h3>📅 ${dataBR(k)}</h3><span>${lista.length}</span></div><div class="lista-modulo">${lista.length?lista.map(x=>itemTarefaCasaV25(x,false)).join(''):'<div class="vazio">Nenhuma tarefa neste dia.</div>'}</div>`;
+      ligarBotoesTarefaCasa(c);
+    }));
+  }
+
+  if(abaCasa==='rotinas'){
+    const rr=await chamarApi({action:'listarRotinasCasa',token:sessao.token});
+    assertOk(rr);
+    const rotinas=rr.dados||[];
+    alvo.innerHTML=`<div class="painel"><div class="painel-titulo"><h3>🔁 Rotinas da casa</h3><span>${rotinas.filter(x=>String(x.ativa).toUpperCase()==='SIM').length} ativas</span></div><div class="lista-modulo">${rotinas.length?rotinas.map(itemRotinaCasaV25).join(''):'<div class="vazio">Nenhuma rotina cadastrada.</div>'}</div></div>`;
+  }
+
+  if(abaCasa==='historico'){
+    alvo.innerHTML=`<div class="painel"><div class="painel-titulo"><h3>🕘 Histórico</h3><span>${tarefas.length}</span></div><div class="lista-modulo">${tarefas.length?tarefas.map(x=>itemTarefaCasaV25(x,true)).join(''):'<div class="vazio">Nenhuma tarefa concluída nos últimos 90 dias.</div>'}</div></div>`;
+  }
+
+  ligarBotoesTarefaCasa(c);
+}
+
+function itemTarefaCasaV25(x,mostrarData){
+  const status=String(x.status||'PENDENTE').toUpperCase();
+  const data=mostrarData&&x.dataPrevista?`<span class="data-tarefa-casa">${dataBR(x.dataPrevista)}</span>`:'';
+  const botao=status==='PENDENTE'?`<button class="botao-concluir-tarefa" data-concluir-tarefa="${escAttr(x.id)}">✓ Concluir</button>`:'';
+  return `<div class="item-lista item-tarefa-casa">
+    <div class="info-tarefa-casa"><div class="descricao">${esc(x.tarefa||'Sem descrição')}</div><div class="meta">${esc(x.responsavel||'Ambos')}${data?' • '+data:''}</div>${x.observacao?`<div class="observacao-tarefa-casa">${esc(x.observacao)}</div>`:''}<span class="badge badge-casa ${status.toLowerCase()}">${esc(status.replaceAll('_',' '))}</span></div>
+    <div class="lado-tarefa-casa">${botao}</div>
+  </div>`;
+}
+
+function itemRotinaCasaV25(x){
+  const ativa=String(x.ativa||'').toUpperCase()==='SIM';
+  const frequencia={DIAS:'A cada dias',SEMANAL:'Semanal',SEMANAL_ALTERNADA:'Quarta alternada',MENSAL:'Mensal',PRIMEIRO_SABADO:'Primeiro sábado'}[x.frequencia]||String(x.frequencia||'');
+  let detalhe=frequencia;
+  if(x.frequencia==='DIAS') detalhe=`A cada ${Number(x.intervaloDias||0)} dias`;
+  if(x.frequencia==='SEMANAL') detalhe=`Toda ${['domingo','segunda','terça','quarta','quinta','sexta','sábado'][Number(x.diaSemana)||0]||'semana'}`;
+  if(x.frequencia==='SEMANAL_ALTERNADA') detalhe='Toda quarta-feira, alternando';
+  return `<div class="rotina-casa-item"><div><strong>${esc(x.tarefa||'Rotina')}</strong><div class="meta">${esc(detalhe)} • ${esc(x.responsavel||'Ambos')}</div><div class="rotina-descricao">${esc(x.descricao||'')}</div></div><span class="badge badge-casa ${ativa?'concluida':'cancelada'}">${ativa?'ATIVA':'INATIVA'}</span></div>`;
+}
+
+function ligarBotoesTarefaCasa(c){
   c.querySelectorAll('[data-concluir-tarefa]').forEach(btn=>{
-    btn.addEventListener('click',async()=>{
+    btn.onclick=async()=>{
       const id=btn.dataset.concluirTarefa;
       btn.disabled=true;
       try{
-        const rr=await chamarApi({
-          action:'concluirTarefaCasa',
-          token:sessao.token,
-          id,
-          concluidaPor:sessao.usuario?.nome||''
-        });
-        assertOk(rr);
-        toast('Tarefa concluída! ✅');
-        await renderCasa(c);
-      }catch(e){
-        toast(e.message||'Não foi possível concluir a tarefa.');
-        btn.disabled=false;
-      }
-    });
+        const rr=await chamarApi({action:'concluirTarefaCasa',token:sessao.token,id,concluidaPor:sessao.usuario?.nome||''});
+        assertOk(rr); toast('Tarefa concluída! ✅'); await renderCasa(c,'hoje');
+      }catch(e){toast(e.message||'Não foi possível concluir a tarefa.');btn.disabled=false;}
+    };
   });
-}
-
-function itemTarefaCasa(x,mostrarData){
-  const status=String(x.status||'PENDENTE').toUpperCase();
-  const classe=status.toLowerCase();
-  const data=mostrarData&&x.dataPrevista?`<span class="data-tarefa-casa">${dataBR(x.dataPrevista)}</span>`:'';
-  const botao=status==='PENDENTE'
-    ?`<button class="botao-concluir-tarefa" data-concluir-tarefa="${escAttr(x.id)}">✓ Concluir</button>`
-    :'';
-
-  return `<div class="item-lista item-tarefa-casa">
-    <div class="info-tarefa-casa">
-      <div class="descricao">${esc(x.tarefa||'Sem descrição')}</div>
-      <div class="meta">${esc(x.responsavel||'Ambos')}${data?' • '+data:''}</div>
-      ${x.observacao?`<div class="observacao-tarefa-casa">${esc(x.observacao)}</div>`:''}
-      <span class="badge badge-casa ${classe}">${esc(status.replaceAll('_',' '))}</span>
-    </div>
-    <div class="lado-tarefa-casa">${botao}</div>
-  </div>`;
 }
 
 async function renderNovaTarefaCasa(c){
   subtelaModulo='nova-tarefa-casa';
   rolarModuloTopo();
-
   const nomeUsuario=sessao.usuario?.nome||'';
   const responsavelPadrao=['Fernando','Letícia'].includes(nomeUsuario)?nomeUsuario:'Ambos';
-
-  c.innerHTML=
-    cabecalho('➕','Nova tarefa','Adicione uma tarefa manual para a casa')+
-    `<form id="form-nova-tarefa-casa" class="form-pagamento form-nova-tarefa-casa">
-      <label class="campo-pagamento">
-        <span>📝 Tarefa *</span>
-        <input id="casa-tarefa" type="text" maxlength="120" placeholder="Ex.: Lavar as roupas" required>
-      </label>
-
-      <label class="campo-pagamento">
-        <span>📅 Data *</span>
-        <input id="casa-data" type="date" value="${dataInputHoje()}" required>
-      </label>
-
-      <label class="campo-pagamento">
-        <span>👤 Responsável *</span>
-        <select id="casa-responsavel" required>
-          <option value="Fernando" ${responsavelPadrao==='Fernando'?'selected':''}>Fernando</option>
-          <option value="Letícia" ${responsavelPadrao==='Letícia'?'selected':''}>Letícia</option>
-          <option value="Ambos" ${responsavelPadrao==='Ambos'?'selected':''}>Ambos</option>
-        </select>
-      </label>
-
-      <label class="campo-pagamento">
-        <span>💬 Observação</span>
-        <textarea id="casa-observacao" maxlength="300" placeholder="Algum detalhe da tarefa?"></textarea>
-      </label>
-
-      <button id="btn-salvar-tarefa-casa" type="submit" class="botao-salvar-pagamento">✅ Inserir tarefa</button>
-      <button id="btn-cancelar-tarefa-casa" type="button" class="botao-cancelar-pagamento">Cancelar</button>
-    </form>`;
-
-  $('btn-cancelar-tarefa-casa').addEventListener('click',async()=>{
-    await renderCasa(c);
-  });
-
-  $('form-nova-tarefa-casa').addEventListener('submit',async e=>{
-    e.preventDefault();
-
-    const botao=$('btn-salvar-tarefa-casa');
-    botao.disabled=true;
-    botao.textContent='Salvando...';
-
-    try{
-      const r=await chamarApi({
-        action:'inserirTarefaCasa',
-        token:sessao.token,
-        dados:{
-          tarefa:$('casa-tarefa').value.trim(),
-          dataPrevista:$('casa-data').value,
-          responsavel:$('casa-responsavel').value,
-          observacao:$('casa-observacao').value.trim()
-        }
-      });
-      assertOk(r);
-      toast('Tarefa inserida com sucesso! 🏠');
-      await renderCasa(c);
-      rolarModuloTopo();
-    }catch(err){
-      toast(err.message||'Não foi possível inserir a tarefa.');
-      botao.disabled=false;
-      botao.textContent='✅ Inserir tarefa';
-    }
-  });
+  c.innerHTML=cabecalho('➕','Nova tarefa','Adicione uma tarefa manual para a casa')+`<form id="form-nova-tarefa-casa" class="form-pagamento form-nova-tarefa-casa">
+    <label class="campo-pagamento"><span>📝 Tarefa *</span><input id="casa-tarefa" type="text" maxlength="120" placeholder="Ex.: Lavar as roupas" required></label>
+    <label class="campo-pagamento"><span>📅 Data *</span><input id="casa-data" type="date" value="${dataInputHoje()}" required></label>
+    <label class="campo-pagamento"><span>👤 Responsável *</span><select id="casa-responsavel" required><option value="Fernando" ${responsavelPadrao==='Fernando'?'selected':''}>Fernando</option><option value="Letícia" ${responsavelPadrao==='Letícia'?'selected':''}>Letícia</option><option value="Ambos" ${responsavelPadrao==='Ambos'?'selected':''}>Ambos</option></select></label>
+    <label class="campo-pagamento"><span>💬 Observação</span><textarea id="casa-observacao" maxlength="300" placeholder="Algum detalhe da tarefa?"></textarea></label>
+    <button id="btn-salvar-tarefa-casa" type="submit" class="botao-salvar-pagamento">✅ Inserir tarefa</button><button id="btn-cancelar-tarefa-casa" type="button" class="botao-cancelar-pagamento">Cancelar</button></form>`;
+  $('btn-cancelar-tarefa-casa').onclick=async()=>{await renderCasa(c,'hoje');};
+  $('form-nova-tarefa-casa').onsubmit=async e=>{
+    e.preventDefault(); const botao=$('btn-salvar-tarefa-casa'); botao.disabled=true; botao.textContent='Salvando...';
+    try{const r=await chamarApi({action:'inserirTarefaCasa',token:sessao.token,dados:{tarefa:$('casa-tarefa').value.trim(),dataPrevista:$('casa-data').value,responsavel:$('casa-responsavel').value,observacao:$('casa-observacao').value.trim()}});assertOk(r);toast('Tarefa inserida com sucesso! 🏠');await renderCasa(c,'hoje');rolarModuloTopo();}
+    catch(err){toast(err.message||'Não foi possível inserir a tarefa.');botao.disabled=false;botao.textContent='✅ Inserir tarefa';}
+  };
 }
 
 /* =========================================================

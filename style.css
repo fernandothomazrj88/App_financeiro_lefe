@@ -1378,3 +1378,93 @@ body.modal-aberto{overflow:hidden}
   .historico-total{font-size:15px}
   .historico-acoes>*{flex:1;min-width:130px;text-align:center}
 }
+
+/* =========================================================
+   LEFE HOME V25.0 — CASA COMPLETA
+========================================================= */
+.tabs-casa{
+  display:flex;
+  gap:7px;
+  overflow-x:auto;
+  padding:0 0 9px;
+  margin-bottom:4px;
+  scrollbar-width:none;
+}
+.tabs-casa::-webkit-scrollbar{display:none}
+.tab-casa,
+.filtro-casa{
+  flex:0 0 auto;
+  border:1px solid #555;
+  background:#111;
+  color:#fff;
+  border-radius:12px;
+  padding:9px 11px;
+  font-size:12px;
+  font-weight:700;
+}
+.tab-casa.ativo,
+.filtro-casa.ativo{
+  background:var(--laranja);
+  border-color:var(--laranja);
+}
+.filtros-casa-linha{
+  display:flex;
+  gap:7px;
+  overflow-x:auto;
+  padding-bottom:2px;
+}
+.calendario-titulo{margin-bottom:12px}
+.calendario-titulo h3{text-transform:capitalize;font-size:18px}
+.dias-semana,
+.grade-calendario{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:5px;
+}
+.dias-semana{margin-bottom:5px}
+.dias-semana span{
+  text-align:center;
+  font-size:9px;
+  color:#aaa;
+  font-weight:700;
+}
+.dia-calendario{
+  min-height:48px;
+  border:1px solid #333;
+  background:#151515;
+  color:#fff;
+  border-radius:10px;
+  padding:7px 3px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+}
+.dia-calendario strong{font-size:14px}
+.dia-calendario span{
+  min-width:18px;
+  padding:2px 5px;
+  border-radius:999px;
+  background:var(--laranja);
+  font-size:9px;
+  font-weight:700;
+}
+.dia-calendario.hoje{border-color:var(--laranja);box-shadow:inset 0 0 0 1px var(--laranja)}
+.dia-calendario.com-tarefa{background:#1b1b1b}
+.vazio-calendario{opacity:.25}
+.rotina-casa-item{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:10px;
+  padding:12px 2px;
+  border-bottom:1px solid #2a2a2a;
+}
+.rotina-casa-item:last-child{border-bottom:0}
+.rotina-casa-item strong{font-size:15px}
+.rotina-descricao{color:#999;font-size:11px;line-height:1.35;margin-top:5px}
+@media(max-width:380px){
+  .tab-casa,.filtro-casa{padding:8px 9px;font-size:11px}
+  .dia-calendario{min-height:43px}
+}
