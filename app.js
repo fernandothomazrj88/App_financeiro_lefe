@@ -8,7 +8,32 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='26.8';
+const LEFE_APP_VERSION='26.9';
+
+// Cache leve em memória para o módulo Casa.
+// Evita novas leituras da API ao trocar de aba rapidamente.
+const CASA_CACHE_TTL=60000;
+const casaCache={
+  tarefasAtivas:null,
+  tarefasAtivasEm:0,
+  tarefasHistorico:null,
+  tarefasHistoricoEm:0,
+  rotinas:null,
+  rotinasEm:0
+};
+
+function limparCacheCasa(){
+  casaCache.tarefasAtivas=null;
+  casaCache.tarefasAtivasEm=0;
+  casaCache.tarefasHistorico=null;
+  casaCache.tarefasHistoricoEm=0;
+  casaCache.rotinas=null;
+  casaCache.rotinasEm=0;
+}
+
+function cacheCasaValido(valor,quando){
+  return Array.isArray(valor) && (Date.now()-quando)<CASA_CACHE_TTL;
+}
 
 async function prepararAtualizacaoLeFe(){
   try{
@@ -17,7 +42,7 @@ async function prepararAtualizacaoLeFe(){
     localStorage.setItem(chave,'ok');
     if('caches' in window){
       const nomes=await caches.keys();
-      await Promise.all(nomes.filter(n=>n.startsWith('lefe-home-') && n!=='lefe-home-v26-7').map(n=>caches.delete(n)));
+      await Promise.all(nomes.filter(n=>n.startsWith('lefe-home-')).map(n=>caches.delete(n)));
     }
     if('serviceWorker' in navigator){
       const regs=await navigator.serviceWorker.getRegistrations();
@@ -28,15 +53,17 @@ async function prepararAtualizacaoLeFe(){
   }
 }
 
-document.addEventListener('DOMContentLoaded',async()=>{
-  await prepararAtualizacaoLeFe();
+document.addEventListener('DOMContentLoaded',()=>{
+  // A limpeza de cache/atualização do PWA acontece em segundo plano.
+  // Assim o app pode mostrar a tela imediatamente, sem esperar o Service Worker.
   iniciarApp();
+  prepararAtualizacaoLeFe();
 });
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.8');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.9');
       await reg.update();
       console.log('LeFe Home PWA v26.8 ativo.',reg.scope);
     }catch(err){
@@ -1439,6 +1466,52 @@ function imprimirListaMercado(itens){
    CASA
 ========================================================= */
 
+async function obterTarefasCasaCache_(abaCasa){
+  const historico=abaCasa==='historico';
+  const agora=Date.now();
+  if(historico && cacheCasaValido(casaCache.tarefasHistorico,casaCache.tarefasHistoricoEm)) return casaCache.tarefasHistorico;
+  if(!historico && cacheCasaValido(casaCache.tarefasAtivas,casaCache.tarefasAtivasEm)) return casaCache.tarefasAtivas;
+
+  const hoje=dataInputHoje();
+  const fim=dataInputOffset(30);
+  const r=await chamarApi({
+    action:'listarTarefasCasa',
+    token:sessao.token,
+    inicio:historico?dataInputOffset(-90):hoje,
+    fim:historico?hoje:fim,
+    status:historico?'CONCLUIDA':''
+  });
+  assertOk(r);
+
+  const tarefas=(r.dados||[]).sort((a,b)=>{
+    const chaveA=historico?(a.concluidaEm||a.dataPrevista):(a.dataPrevista);
+    const chaveB=historico?(b.concluidaEm||b.dataPrevista):(b.dataPrevista);
+    const da=new Date(chaveA||0).getTime();
+    const db=new Date(chaveB||0).getTime();
+    if(da!==db)return da-db;
+    return String(a.tarefa||'').localeCompare(String(b.tarefa||''),'pt-BR');
+  });
+
+  if(historico){
+    casaCache.tarefasHistorico=tarefas;
+    casaCache.tarefasHistoricoEm=agora;
+  }else{
+    casaCache.tarefasAtivas=tarefas;
+    casaCache.tarefasAtivasEm=agora;
+  }
+  return tarefas;
+}
+
+async function obterRotinasCasaCache_(){
+  if(cacheCasaValido(casaCache.rotinas,casaCache.rotinasEm)) return casaCache.rotinas;
+  const rr=await chamarApi({action:'listarRotinasCasa',token:sessao.token});
+  assertOk(rr);
+  const rotinas=rr.dados||[];
+  casaCache.rotinas=rotinas;
+  casaCache.rotinasEm=Date.now();
+  return rotinas;
+}
+
 async function renderCasa(c, abaCasa='hoje'){
   subtelaModulo=null;
 
@@ -1450,29 +1523,13 @@ async function renderCasa(c, abaCasa='hoje'){
     ['historico','🕘 Histórico']
   ];
 
-  const hoje=dataInputHoje();
-  const fim=dataInputOffset(30);
-  const r=await chamarApi({
-    action:'listarTarefasCasa',
-    token:sessao.token,
-    inicio:abaCasa==='historico'?dataInputOffset(-90):hoje,
-    fim:abaCasa==='historico'?hoje:fim,
-    status:abaCasa==='historico'?'CONCLUIDA':''
-  });
-  assertOk(r);
-
-  const tarefas=(r.dados||[]).sort((a,b)=>{
-    const chaveA=abaCasa==='historico'?(a.concluidaEm||a.dataPrevista):(a.dataPrevista);
-    const chaveB=abaCasa==='historico'?(b.concluidaEm||b.dataPrevista):(b.dataPrevista);
-    const da=new Date(chaveA||0).getTime();
-    const db=new Date(chaveB||0).getTime();
-    if(da!==db)return da-db;
-    return String(a.tarefa||'').localeCompare(String(b.tarefa||''),'pt-BR');
-  });
+  // Rotinas não precisa carregar as tarefas. Isso elimina uma chamada
+  // pesada e deixa a troca para essa aba praticamente imediata.
+  const tarefas=abaCasa==='rotinas'?[]:await obterTarefasCasaCache_(abaCasa);
 
   // Guarda as tarefas já carregadas na tela.
   // A edição usa esse registro local para evitar uma nova consulta
-  // com intervalo gigante (que poderia tentar gerar décadas de tarefas).
+  // com intervalo gigante.
   c.__tarefasCasa=tarefas;
 
   const pendentes=tarefas.filter(x=>String(x.status||'').toUpperCase()==='PENDENTE').length;
@@ -1494,6 +1551,7 @@ async function renderCasa(c, abaCasa='hoje'){
   const alvo=$('conteudo-casa-v25');
 
   if(abaCasa==='hoje'){
+    const hoje=dataInputHoje();
     const hojeTarefas=tarefas.filter(x=>String(x.dataPrevista||'').slice(0,10)===hoje);
     const proximas=tarefas.filter(x=>String(x.dataPrevista||'').slice(0,10)>hoje).slice(0,10);
     alvo.innerHTML=
@@ -1531,7 +1589,7 @@ async function renderCasa(c, abaCasa='hoje'){
     const fimMes=new Date(ano,mes+1,0);
     const chaveInicio=`${ano}-${String(mes+1).padStart(2,'0')}-01`;
     const chaveFim=`${ano}-${String(mes+1).padStart(2,'0')}-${String(fimMes.getDate()).padStart(2,'0')}`;
-    const doMes=(r.dados||[]).filter(x=>{const k=String(x.dataPrevista||'').slice(0,10);return k>=chaveInicio&&k<=chaveFim;});
+    const doMes=tarefas.filter(x=>{const k=String(x.dataPrevista||'').slice(0,10);return k>=chaveInicio&&k<=chaveFim;});
     const porDia={}; doMes.forEach(x=>{const k=String(x.dataPrevista||'').slice(0,10);(porDia[k]??=[]).push(x);});
     const primeiro=(inicioMes.getDay()+6)%7;
     let celulas='';
@@ -1539,7 +1597,7 @@ async function renderCasa(c, abaCasa='hoje'){
     for(let d=1;d<=fimMes.getDate();d++){
       const k=`${ano}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const lista=porDia[k]||[];
-      const classes=[k===hoje?'hoje':'',lista.length?'com-tarefa':''].filter(Boolean).join(' ');
+      const classes=[k===dataInputHoje()?'hoje':'',lista.length?'com-tarefa':''].filter(Boolean).join(' ');
       celulas+=`<button type="button" class="dia-calendario ${classes}" data-dia-casa="${k}"><strong>${d}</strong>${lista.length?`<span>${lista.length}</span>`:''}</button>`;
     }
     alvo.innerHTML=`<div class="painel calendario-casa-v25"><div class="calendario-titulo"><h3>🗓️ ${inicioMes.toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</h3></div><div class="dias-semana"><span>SEG</span><span>TER</span><span>QUA</span><span>QUI</span><span>SEX</span><span>SÁB</span><span>DOM</span></div><div class="grade-calendario">${celulas}</div></div><div id="detalhe-dia-casa" class="painel"><div class="vazio">Toque em um dia para ver as tarefas.</div></div>`;
@@ -1551,9 +1609,7 @@ async function renderCasa(c, abaCasa='hoje'){
   }
 
   if(abaCasa==='rotinas'){
-    const rr=await chamarApi({action:'listarRotinasCasa',token:sessao.token});
-    assertOk(rr);
-    const rotinas=rr.dados||[];
+    const rotinas=await obterRotinasCasaCache_();
     alvo.innerHTML=`<div class="painel"><div class="painel-titulo"><h3>🔁 Rotinas da casa</h3><span>${rotinas.filter(x=>String(x.ativa).toUpperCase()==='SIM').length} ativas</span></div><div class="lista-modulo">${rotinas.length?rotinas.map(itemRotinaCasaV25).join(''):'<div class="vazio">Nenhuma rotina cadastrada.</div>'}</div></div>`;
   }
 
@@ -1593,7 +1649,7 @@ function ligarBotoesTarefaCasa(c){
       btn.disabled=true;
       try{
         const rr=await chamarApi({action:'concluirTarefaCasa',token:sessao.token,id,concluidaPor:sessao.usuario?.nome||''});
-        assertOk(rr); toast('Tarefa concluída! ✅'); await renderCasa(c,'hoje');
+        assertOk(rr); limparCacheCasa(); toast('Tarefa concluída! ✅'); await renderCasa(c,'hoje');
       }catch(e){toast(e.message||'Não foi possível concluir a tarefa.');btn.disabled=false;}
     };
   });
@@ -1616,7 +1672,7 @@ function ligarBotoesTarefaCasa(c){
       btn.disabled=true;
       try{
         const rr=await chamarApi({action:'excluirTarefaCasa',token:sessao.token,id});
-        assertOk(rr); toast('Tarefa excluída! 🗑️'); await renderCasa(c,'hoje');
+        assertOk(rr); limparCacheCasa(); toast('Tarefa excluída! 🗑️'); await renderCasa(c,'hoje');
       }catch(e){toast(e.message||'Não foi possível excluir a tarefa.');btn.disabled=false;}
     };
   });
@@ -1642,7 +1698,7 @@ async function renderEditarTarefaCasa(c,item){
       const dados={tarefa:$('casa-editar-tarefa').value.trim(),dataPrevista:$('casa-editar-data').value,responsavel:$('casa-editar-responsavel').value,observacao:$('casa-editar-observacao').value.trim()};
       if(!dados.tarefa||!dados.dataPrevista)throw new Error('Informe tarefa e data.');
       const rr=await chamarApi({action:'atualizarTarefaCasa',token:sessao.token,id:item.id,dados});
-      assertOk(rr);toast('Tarefa atualizada! ✅');await renderCasa(c,'hoje');rolarModuloTopo();
+      assertOk(rr);limparCacheCasa();toast('Tarefa atualizada! ✅');await renderCasa(c,'hoje');rolarModuloTopo();
     }catch(e){toast(e.message||'Não foi possível atualizar a tarefa.');botao.disabled=false;botao.textContent='💾 Salvar alterações';}
   };
 }
@@ -1661,7 +1717,7 @@ async function renderNovaTarefaCasa(c){
   $('btn-cancelar-tarefa-casa').onclick=async()=>{await renderCasa(c,'hoje');};
   $('form-nova-tarefa-casa').onsubmit=async e=>{
     e.preventDefault(); const botao=$('btn-salvar-tarefa-casa'); botao.disabled=true; botao.textContent='Salvando...';
-    try{const r=await chamarApi({action:'inserirTarefaCasa',token:sessao.token,dados:{tarefa:$('casa-tarefa').value.trim(),dataPrevista:$('casa-data').value,responsavel:$('casa-responsavel').value,observacao:$('casa-observacao').value.trim()}});assertOk(r);toast('Tarefa inserida com sucesso! 🏠');await renderCasa(c,'hoje');rolarModuloTopo();}
+    try{const r=await chamarApi({action:'inserirTarefaCasa',token:sessao.token,dados:{tarefa:$('casa-tarefa').value.trim(),dataPrevista:$('casa-data').value,responsavel:$('casa-responsavel').value,observacao:$('casa-observacao').value.trim()}});assertOk(r);limparCacheCasa();toast('Tarefa inserida com sucesso! 🏠');await renderCasa(c,'hoje');rolarModuloTopo();}
     catch(err){toast(err.message||'Não foi possível inserir a tarefa.');botao.disabled=false;botao.textContent='✅ Inserir tarefa';}
   };
 }
