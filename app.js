@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='26.9';
+const LEFE_APP_VERSION='26.10';
 
 // Cache leve em memória para o módulo Casa.
 // Evita novas leituras da API ao trocar de aba rapidamente.
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.9');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.10');
       await reg.update();
       console.log('LeFe Home PWA v26.8 ativo.',reg.scope);
     }catch(err){
@@ -2198,7 +2198,7 @@ async function renderCalendario(c){
   }
   const selecionados=(porDia[calendarioEstado.diaSelecionado]||[]).sort(calOrdenarItens);
   const tituloMes=new Date(ano,mes,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
-  const diaTitulo=calendarioEstado.diaSelecionado?dataBR(calendarioEstado.diaSelecionado):'';
+  const diaTitulo=calendarioEstado.diaSelecionado?calendarioEstado.diaSelecionado.split('-').reverse().join('/'):'';
   const proximos=itens.filter(x=>chaveDataLocalFront(x.data)>=hoje).sort(calOrdenarItens).slice(0,8);
 
   c.innerHTML=cabecalho('📅','Calendário','Compromissos, tarefas e vencimentos')+`

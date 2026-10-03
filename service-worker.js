@@ -1,13 +1,13 @@
-const CACHE_NAME='lefe-home-v26-9';
+const CACHE_NAME='lefe-home-v26-10';
 
 const ARQUIVOS=[
   './',
   './index.html',
-  './style.css?v=26.9',
-  './app.js?v=26.9',
-  './manifest.json?v=26.9',
-  './assets/icon-192.png?v=26.9',
-  './assets/icon-512.png?v=26.9',
+  './style.css?v=26.10',
+  './app.js?v=26.10',
+  './manifest.json?v=26.10',
+  './assets/icon-192.png?v=26.10',
+  './assets/icon-512.png?v=26.10',
   './assets/casal-login.png',
   './assets/leticia-home.png',
   './assets/fernando-home.png'
