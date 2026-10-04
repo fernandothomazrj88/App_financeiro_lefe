@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='26.11';
+const LEFE_APP_VERSION='26.12';
 
 // Cache leve em memória para o módulo Casa.
 // Evita novas leituras da API ao trocar de aba rapidamente.
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.11');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.12');
       await reg.update();
       console.log('LeFe Home PWA v26.8 ativo.',reg.scope);
     }catch(err){
@@ -781,211 +781,217 @@ async function renderRegistrarPagamento(c,item){
    MERCADO
 ========================================================= */
 
-async function renderMercado(c, filtroInicial='TODAS', buscaInicial=''){
-  subtelaModulo=null;
-  const r=await chamarApi({action:'listarMercado',token:sessao.token,referencia:referenciaAtual()});
-  assertOk(r);
+async function renderMercado(c){
+  subtelaModulo='listas-mercado';
+  rolarModuloTopo();
+  try{
+    const r=await chamarApi({action:'listarListasMercado',token:sessao.token});
+    assertOk(r);
+    renderListasMercado(c,r.dados||[]);
+  }catch(e){
+    toast(e.message||'Não foi possível carregar suas listas de mercado.');
+    c.innerHTML=cabecalho('🛒','Mercado','Não foi possível carregar as listas')+`<div class="painel"><div class="vazio">Tente novamente em alguns segundos.</div></div>`;
+  }
+}
 
-  const todos=(r.dados||[]).filter(x=>String(x.naLista||'SIM').toUpperCase()!=='NÃO');
-  const pendentes=todos.filter(x=>String(x.comprado||'NÃO').toUpperCase()!=='SIM');
-  const comprados=todos.filter(x=>String(x.comprado||'NÃO').toUpperCase()==='SIM');
-  const totalComprado=comprados.reduce((t,x)=>t+Number(x.valorTotal||0),0);
-  const semPreco=comprados.filter(x=>Number(x.valorTotal||0)<=0);
+function renderListasMercado(c,listas){
+  const abertas=(listas||[]).filter(x=>String(x.status||'ABERTA').toUpperCase()==='ABERTA');
+  const finalizadas=(listas||[]).filter(x=>String(x.status||'').toUpperCase()!=='ABERTA');
 
-  renderListaMercado(c,todos,filtroInicial,buscaInicial,{
-    pendentes:pendentes.length,
-    comprados:comprados.length,
-    totalComprado,
-    semPreco:semPreco.length
+  const cardLista=x=>{
+    const aberta=String(x.status||'ABERTA').toUpperCase()==='ABERTA';
+    const statusTxt=aberta?'EM ANDAMENTO':String(x.status||'').toUpperCase()==='FINALIZADA'?'FINALIZADA':'ARQUIVADA';
+    const statusClass=aberta?'concluida':statusTxt==='FINALIZADA'?'concluida':'cancelada';
+    const data=x.dataAtualizacao||x.dataCriacao;
+    const dataFmt=data?new Date(data).toLocaleDateString('pt-BR'):'—';
+    const podeExcluir=!Number(x.itens||0)&&!Number(x.totalCompras||0);
+    return `<div class="lista-mercado-card">
+      <button type="button" class="lista-mercado-card-main" data-abrir-lista-mercado="${escAttr(x.id)}">
+        <div class="lista-mercado-card-icone">${aberta?'🛒':'🧾'}</div>
+        <div class="lista-mercado-card-corpo">
+          <div class="lista-mercado-card-topo"><strong>${esc(x.nome||'Lista sem nome')}</strong><span class="badge badge-casa ${statusClass}">${statusTxt}</span></div>
+          <div class="meta">${Number(x.itens||0)} ${Number(x.itens||0)===1?'item':'itens'} • ${Number(x.pendentes||0)} pendentes${Number(x.quantidadeCompras||0)?' • '+Number(x.quantidadeCompras||0)+' compra(s)':''}</div>
+          <div class="meta">Atualizada em ${dataFmt}${Number(x.totalCompras||0)>0?' • Gasto: '+moeda(x.totalCompras):''}</div>
+        </div>
+        <span class="lista-mercado-seta">›</span>
+      </button>
+      <div class="lista-mercado-card-acoes">
+        <button type="button" class="rotina-mini" data-editar-lista-mercado="${escAttr(x.id)}">✏️ Renomear</button>
+        ${podeExcluir?`<button type="button" class="rotina-mini perigo" data-excluir-lista-mercado="${escAttr(x.id)}">🗑️ Excluir</button>`:''}
+      </div>
+    </div>`;
+  };
+
+  c.innerHTML=`<div class="cabecalho-modulo cabecalho-mercado">
+      <div class="icone-grande">🛒</div>
+      <div><h2>Mercado</h2><p>Crie listas separadas para cada compra.</p></div>
+      <div class="acoes-mercado-topo"><button id="btn-nova-lista-mercado" type="button" class="botao-nova-despesa">＋ Lista</button></div>
+    </div>
+    <div class="painel mercado-listas-intro">
+      <div class="painel-titulo"><h3>📋 Minhas listas</h3><span>${(listas||[]).length}</span></div>
+      <p class="ajuda-campo">Cada lista é independente. Toque em uma lista para abrir os itens, colocar preços e finalizar a compra.</p>
+      <div class="barra-mercado-superior">
+        <button id="btn-historico-mercado" type="button" class="botao-exportar-mercado">📜 Histórico de compras</button>
+      </div>
+    </div>
+    ${abertas.length?`<div class="painel"><div class="painel-titulo"><h3>🛒 Em andamento</h3><span>${abertas.length}</span></div><div class="lista-mercado-cards">${abertas.map(cardLista).join('')}</div></div>`:''}
+    ${finalizadas.length?`<div class="painel"><div class="painel-titulo"><h3>🧾 Finalizadas e arquivadas</h3><span>${finalizadas.length}</span></div><div class="lista-mercado-cards">${finalizadas.map(cardLista).join('')}</div></div>`:''}
+    ${!(listas||[]).length?`<div class="painel"><div class="vazio">Você ainda não criou nenhuma lista. Clique em ＋ Lista para começar.</div></div>`:''}`;
+
+  $('btn-nova-lista-mercado').onclick=()=>renderNovaListaMercado(c);
+  $('btn-historico-mercado').onclick=()=>renderHistoricoMercado(c);
+
+  c.querySelectorAll('[data-abrir-lista-mercado]').forEach(btn=>btn.onclick=()=>renderListaMercadoDetalhe(c,btn.dataset.abrirListaMercado));
+  c.querySelectorAll('[data-editar-lista-mercado]').forEach(btn=>btn.onclick=()=>{
+    const item=(listas||[]).find(x=>String(x.id)===String(btn.dataset.editarListaMercado));
+    if(item)renderEditarListaMercado(c,item);
+  });
+  c.querySelectorAll('[data-excluir-lista-mercado]').forEach(btn=>btn.onclick=async()=>{
+    const id=btn.dataset.excluirListaMercado;
+    if(!confirm('Excluir esta lista vazia?'))return;
+    btn.disabled=true;
+    try{
+      const r=await chamarApi({action:'excluirListaMercado',token:sessao.token,id});
+      assertOk(r);toast('Lista excluída. 🗑️');await renderMercado(c);
+    }catch(e){toast(e.message||'Não foi possível excluir a lista.');btn.disabled=false;}
   });
 }
 
-function renderListaMercado(c,itens,filtro='TODAS',busca='',resumo={}){
+async function renderNovaListaMercado(c){
+  subtelaModulo='nova-lista-mercado';
+  rolarModuloTopo();
+  c.innerHTML=cabecalho('🛒','Nova lista de mercado','Dê um nome para identificar esta compra')+
+  `<form id="form-nova-lista-mercado" class="form-pagamento">
+    <label class="campo-pagamento"><span>📝 Nome da lista *</span><input id="nova-lista-nome" type="text" maxlength="100" placeholder="Ex.: Compra rápida — 03/10" required></label>
+    <label class="campo-pagamento"><span>💬 Observação</span><textarea id="nova-lista-observacao" maxlength="300" rows="3" placeholder="Ex.: compras para o fim de semana"></textarea></label>
+    <div class="aviso-preco-mercado">💡 Você poderá adicionar os itens agora e colocar os preços somente quando estiver no mercado.</div>
+    <div class="cal-form-acoes"><button id="btn-cancelar-nova-lista" type="button" class="botao-cancelar-pagamento">Cancelar</button><button id="btn-criar-lista-mercado" type="submit" class="botao-salvar-pagamento">🛒 Criar lista</button></div>
+  </form>`;
+  $('btn-cancelar-nova-lista').onclick=()=>renderMercado(c);
+  $('form-nova-lista-mercado').onsubmit=async e=>{
+    e.preventDefault();
+    const btn=$('btn-criar-lista-mercado');btn.disabled=true;btn.textContent='Criando...';
+    try{
+      const r=await chamarApi({action:'criarListaMercado',token:sessao.token,dados:{nome:$('nova-lista-nome').value.trim(),referencia:referenciaAtual(),observacao:$('nova-lista-observacao').value.trim()}});
+      assertOk(r);toast('Lista criada! 🛒');await renderListaMercadoDetalhe(c,r.id);
+    }catch(err){toast(err.message||'Não foi possível criar a lista.');btn.disabled=false;btn.textContent='🛒 Criar lista';}
+  };
+}
+
+async function renderEditarListaMercado(c,item){
+  subtelaModulo='editar-lista-mercado';
+  rolarModuloTopo();
+  c.innerHTML=cabecalho('✏️','Renomear lista','Altere o nome sem perder os itens')+
+  `<form id="form-editar-lista-mercado" class="form-pagamento">
+    <label class="campo-pagamento"><span>📝 Nome da lista *</span><input id="editar-lista-nome" type="text" maxlength="100" value="${escAttr(item.nome||'')}" required></label>
+    <label class="campo-pagamento"><span>💬 Observação</span><textarea id="editar-lista-observacao" maxlength="300" rows="3">${esc(item.observacao||'')}</textarea></label>
+    <div class="cal-form-acoes"><button id="btn-cancelar-editar-lista" type="button" class="botao-cancelar-pagamento">Cancelar</button><button id="btn-salvar-editar-lista" type="submit" class="botao-salvar-pagamento">💾 Salvar</button></div>
+  </form>`;
+  $('btn-cancelar-editar-lista').onclick=()=>renderMercado(c);
+  $('form-editar-lista-mercado').onsubmit=async e=>{
+    e.preventDefault();
+    const btn=$('btn-salvar-editar-lista');btn.disabled=true;btn.textContent='Salvando...';
+    try{
+      const r=await chamarApi({action:'atualizarListaMercado',token:sessao.token,id:item.id,dados:{nome:$('editar-lista-nome').value.trim(),observacao:$('editar-lista-observacao').value.trim()}});
+      assertOk(r);toast('Lista atualizada! ✅');await renderMercado(c);
+    }catch(err){toast(err.message||'Não foi possível atualizar a lista.');btn.disabled=false;btn.textContent='💾 Salvar';}
+  };
+}
+
+async function renderListaMercadoDetalhe(c,listaId,filtroInicial='TODAS',buscaInicial=''){
+  subtelaModulo='lista-mercado-detalhe';
+  rolarModuloTopo();
+  try{
+    const [rl,ri]=await Promise.all([
+      chamarApi({action:'listarListasMercado',token:sessao.token}),
+      chamarApi({action:'listarMercado',token:sessao.token,listaId})
+    ]);
+    assertOk(rl);assertOk(ri);
+    const lista=(rl.dados||[]).find(x=>String(x.id)===String(listaId));
+    if(!lista)throw new Error('Lista não encontrada.');
+    renderListaMercado(c,lista,ri.dados||[],filtroInicial,buscaInicial);
+  }catch(e){toast(e.message||'Não foi possível abrir a lista.');await renderMercado(c);}
+}
+
+function renderListaMercado(c,lista,itens,filtro='TODAS',busca=''){
   const categorias=['TODAS','ESSENCIAL','ADICIONAIS','MISTURA','LIMPEZA/HIGIENE'];
   const buscaNorm=String(busca||'').trim().toLowerCase();
+  const listaId=String(lista.id);
+  const finalizada=String(lista.status||'').toUpperCase()==='FINALIZADA';
+  let ativos=(itens||[]).filter(x=>String(x.naLista||'SIM').toUpperCase()!=='NÃO');
+  let visiveis=ativos.filter(x=>{const cat=String(x.categoria||'').toUpperCase();const texto=[x.produto,x.categoria,x.observacao].join(' ').toLowerCase();return (filtro==='TODAS'||cat===filtro)&&(!buscaNorm||texto.includes(buscaNorm));});
+  const pendentes=ativos.filter(x=>String(x.comprado||'NÃO').toUpperCase()!=='SIM');
+  const comprados=ativos.filter(x=>String(x.comprado||'NÃO').toUpperCase()==='SIM');
+  const totalComprado=comprados.reduce((t,x)=>t+Number(x.valorTotal||0),0);
+  const semPreco=comprados.filter(x=>Number(x.valorTotal||0)<=0);
+  const avisoPreco=semPreco.length?`<div class="aviso-preco-mercado">⚠️ ${semPreco.length} item(ns) marcado(s) como comprado ainda está(ão) sem preço.</div>`:'';
 
-  let lista=itens.filter(x=>{
-    const cat=String(x.categoria||'').toUpperCase();
-    const okCat=filtro==='TODAS'||cat===filtro;
-    const texto=[x.produto,x.categoria,x.observacao].join(' ').toLowerCase();
-    return okCat && (!buscaNorm||texto.includes(buscaNorm));
-  });
+  c.innerHTML=`<div class="cabecalho-modulo cabecalho-mercado">
+    <div class="icone-grande">🛒</div><div><h2>${esc(lista.nome||'Lista de mercado')}</h2><p>${finalizada?'Lista finalizada':'Lista em andamento'}</p></div>
+    <div class="acoes-mercado-topo"><button id="btn-voltar-listas-mercado" type="button" class="botao-exportar-mercado">← Listas</button></div>
+  </div>
+  <div class="cards-resumo cards-resumo-mercado"><div class="card-resumo"><small>Na lista</small><strong class="laranja">${ativos.length}</strong></div><div class="card-resumo"><small>Comprados</small><strong class="verde">${comprados.length}</strong></div><div class="card-resumo"><small>Total comprado</small><strong class="laranja">${moeda(totalComprado)}</strong></div></div>
+  <div class="painel mercado-acoes-principais">
+    <div class="barra-mercado-superior">
+      ${!finalizada?`<button id="btn-novo-item-mercado" type="button" class="botao-nova-despesa">＋ Item</button><button id="btn-finalizar-compra-mercado" type="button" class="botao-salvar-pagamento">🧾 Finalizar compra</button>`:''}
+      <button id="btn-exportar-lista-mercado" type="button" class="botao-exportar-mercado">🖼️ Salvar lista</button>
+      <button id="btn-historico-mercado" type="button" class="botao-exportar-mercado">📜 Histórico</button>
+    </div>
+    <div class="ajuda-campo">${finalizada?'Esta lista já foi finalizada. Você pode consultar os itens e o histórico.':'Em casa, monte a lista sem preços. No mercado, informe o preço real e marque o que foi comprado.'}</div>
+    ${avisoPreco}
+    <div class="busca-mercado-wrap"><span>🔎</span><input id="busca-mercado" type="search" value="${escAttr(busca)}" placeholder="Buscar produto..." autocomplete="off"></div>
+    <div class="barra-acoes barra-acoes-mercado">${categorias.map(cat=>`<button type="button" class="chip ${cat===filtro?'ativo':''}" data-filtro-mercado="${escAttr(cat)}">${esc(cat==='LIMPEZA/HIGIENE'?'Limpeza/Higiene':cat.charAt(0)+cat.slice(1).toLowerCase())}</button>`).join('')}</div>
+  </div>
+  <div class="painel"><div class="painel-titulo"><h3>📋 Itens desta lista</h3><span>${visiveis.length}${pendentes.length?' • '+pendentes.length+' pendentes':''}</span></div><div class="lista-modulo lista-mercado-v21">${visiveis.length?visiveis.map(itemMercadoV21).join(''):'<div class="vazio">Nenhum item encontrado nesta lista.</div>'}</div></div>`;
 
-  const totalSelecionados=lista
-    .filter(x=>String(x.comprado||'NÃO').toUpperCase()==='SIM')
-    .reduce((t,x)=>t+Number(x.valorTotal||0),0);
-
-  const avisoPreco=Number(resumo.semPreco||0)>0
-    ? `<div class="aviso-preco-mercado">⚠️ ${Number(resumo.semPreco)} item(ns) marcado(s) como comprado ainda está(ão) sem preço.</div>`
-    : '';
-
-  c.innerHTML=
-    `<div class="cabecalho-modulo cabecalho-mercado">
-      <div class="icone-grande">🛒</div>
-      <div><h2>Mercado</h2><p>Monte a lista em casa e coloque os preços no mercado</p></div>
-      <div class="acoes-mercado-topo"><button id="btn-novo-item-mercado" type="button" class="botao-nova-despesa">＋ Item</button></div>
-    </div>`+
-    `<div class="cards-resumo cards-resumo-mercado">
-      <div class="card-resumo"><small>Na lista</small><strong class="laranja">${Number(resumo.pendentes||0)}</strong></div>
-      <div class="card-resumo"><small>Comprados</small><strong class="verde">${Number(resumo.comprados||0)}</strong></div>
-      <div class="card-resumo"><small>Total comprado</small><strong class="laranja">${moeda(resumo.totalComprado||0)}</strong></div>
-    </div>`+
-    `<div class="painel mercado-acoes-principais">
-      <div class="barra-mercado-superior">
-        <button id="btn-finalizar-compra-mercado" type="button" class="botao-salvar-pagamento">🧾 Finalizar compra</button>
-        <button id="btn-exportar-lista-mercado" type="button" class="botao-exportar-mercado">🖼️ Salvar lista</button>
-        <button id="btn-historico-mercado" type="button" class="botao-exportar-mercado">📜 Histórico</button>
-        <span class="ajuda-campo">🛒 No mercado: informe o preço real e toque em “Marcar como comprado”. O item entra no total. Use “Excluir” para remover da lista.</span>
-      </div>
-      ${avisoPreco}
-      <div class="busca-mercado-wrap"><span>🔎</span><input id="busca-mercado" type="search" value="${escAttr(busca)}" placeholder="Buscar produto..." autocomplete="off"></div>
-      <div class="barra-acoes barra-acoes-mercado">${categorias.map(cat=>`<button type="button" class="chip ${cat===filtro?'ativo':''}" data-filtro-mercado="${escAttr(cat)}">${esc(cat==='LIMPEZA/HIGIENE'?'Limpeza/Higiene':cat.charAt(0)+cat.slice(1).toLowerCase())}</button>`).join('')}</div>
-    </div>`+
-    `<div class="painel">
-      <div class="painel-titulo"><h3>${filtro==='TODAS'?'Minha lista':filtro}</h3><span>${lista.length} itens${totalSelecionados>0?' · '+moeda(totalSelecionados)+' comprados':''}</span></div>
-      <div class="lista-modulo lista-mercado-v21">${lista.length?lista.map(itemMercadoV21).join(''):'<div class="vazio">Nenhum item encontrado. Clique em ＋ Item para adicionar.</div>'}</div>
-    </div>`;
-
-  $('btn-novo-item-mercado').addEventListener('click',()=>renderNovoItemMercado(c));
-  $('btn-finalizar-compra-mercado').addEventListener('click',()=>renderFinalizarCompraMercado(c,itens));
-  $('btn-exportar-lista-mercado').addEventListener('click',()=>abrirExportacaoMercado(itens));
-  $('btn-historico-mercado').addEventListener('click',()=>renderHistoricoMercado(c));
+  $('btn-voltar-listas-mercado').onclick=()=>renderMercado(c);
+  $('btn-historico-mercado').onclick=()=>renderHistoricoMercado(c);
+  $('btn-exportar-lista-mercado').onclick=()=>abrirExportacaoMercado(itens,lista.nome);
+  if($('btn-novo-item-mercado'))$('btn-novo-item-mercado').onclick=()=>renderNovoItemMercado(c,lista);
+  if($('btn-finalizar-compra-mercado'))$('btn-finalizar-compra-mercado').onclick=()=>renderFinalizarCompraMercado(c,lista,itens);
 
   let timer=null;
-  $('busca-mercado').addEventListener('input',e=>{
-    const v=e.target.value;
-    clearTimeout(timer);
-    timer=setTimeout(()=>renderListaMercado(c,itens,filtro,v,resumo),160);
-  });
+  $('busca-mercado').addEventListener('input',e=>{const v=e.target.value;clearTimeout(timer);timer=setTimeout(()=>renderListaMercado(c,lista,itens,filtro,v),160);});
+  c.querySelectorAll('[data-filtro-mercado]').forEach(btn=>btn.addEventListener('click',()=>renderListaMercado(c,lista,itens,btn.dataset.filtroMercado,$('busca-mercado').value)));
 
-  c.querySelectorAll('[data-filtro-mercado]').forEach(btn=>{
-    btn.addEventListener('click',()=>renderListaMercado(c,itens,btn.dataset.filtroMercado,$('busca-mercado').value,resumo));
-  });
+  c.querySelectorAll('[data-mercado-preco]').forEach(input=>input.addEventListener('change',async()=>{
+    const id=input.dataset.mercadoPreco;const raw=String(input.value||'').trim().replace(',','.');const valor=raw===''?0:Number(raw);
+    if(!Number.isFinite(valor)||valor<0){toast('Informe um preço válido.');return;} input.disabled=true;
+    try{const rr=await chamarApi({action:'atualizarItemMercado',token:sessao.token,id,dados:{valorUnitario:valor}});assertOk(rr);toast('Preço atualizado! 💰');await renderListaMercadoDetalhe(c,listaId,filtro,$('busca-mercado')?.value||'');}catch(e){toast(e.message||'Não foi possível salvar o preço.');input.disabled=false;}
+  }));
 
-  c.querySelectorAll('[data-mercado-preco]').forEach(input=>{
-    input.addEventListener('change',async()=>{
-      const id=input.dataset.mercadoPreco;
-      const raw=String(input.value||'').trim().replace(',','.');
-      const valor=raw===''?0:Number(raw);
+  c.querySelectorAll('[data-mercado-id]').forEach(btn=>btn.addEventListener('click',async()=>{
+    btn.disabled=true;try{const novo=btn.dataset.ok!=='SIM';const rr=await chamarApi({action:'atualizarItemMercado',token:sessao.token,id:btn.dataset.mercadoId,dados:{comprado:novo?'SIM':'NÃO'}});assertOk(rr);toast(novo?'Item marcado como comprado! 🛒':'Item voltou para a lista.');await renderListaMercadoDetalhe(c,listaId,filtro,$('busca-mercado')?.value||'');}catch(e){toast(e.message||'Não foi possível atualizar o item.');btn.disabled=false;}
+  }));
 
-      if(!Number.isFinite(valor)||valor<0){
-        toast('Informe um preço válido.');
-        return;
-      }
-
-      input.disabled=true;
-      try{
-        const rr=await chamarApi({
-          action:'atualizarItemMercado',
-          token:sessao.token,
-          id,
-          dados:{valorUnitario:valor}
-        });
-        assertOk(rr);
-        toast('Preço atualizado! 💰');
-        await renderMercado(c,filtro,$('busca-mercado')?.value||'');
-      }catch(e){
-        toast(e.message||'Não foi possível salvar o preço.');
-        input.disabled=false;
-      }
-    });
-  });
-
-  c.querySelectorAll('[data-mercado-id]').forEach(btn=>{
-    btn.addEventListener('click',async()=>{
-      btn.disabled=true;
-      try{
-        const novo=btn.dataset.ok!=='SIM';
-        const rr=await chamarApi({
-          action:'atualizarItemMercado',
-          token:sessao.token,
-          id:btn.dataset.mercadoId,
-          dados:{comprado:novo?'SIM':'NÃO'}
-        });
-        assertOk(rr);
-        toast(novo?'Item marcado como comprado! 🛒':'Item voltou para a lista.');
-        await renderMercado(c,filtro,$('busca-mercado')?.value||'');
-      }catch(e){
-        toast(e.message||'Não foi possível atualizar o item.');
-        btn.disabled=false;
-      }
-    });
-  });
-
-  c.querySelectorAll('[data-excluir-mercado-id]').forEach(btn=>{
-    btn.addEventListener('click',async()=>{
-      const id=btn.dataset.excluirMercadoId;
-      const produto=btn.dataset.produto||'este item';
-      if(!confirm(`Excluir "${produto}" da lista?\n\nEssa ação remove o item da lista de mercado.`)) return;
-      btn.disabled=true;
-      try{
-        const rr=await chamarApi({
-          action:'excluirItemMercado',
-          token:sessao.token,
-          id
-        });
-        assertOk(rr);
-        toast('Item excluído da lista. 🗑️');
-        await renderMercado(c,filtro,$('busca-mercado')?.value||'');
-      }catch(e){
-        toast(e.message||'Não foi possível excluir o item.');
-        btn.disabled=false;
-      }
-    });
-  });
+  c.querySelectorAll('[data-excluir-mercado-id]').forEach(btn=>btn.addEventListener('click',async()=>{
+    const id=btn.dataset.excluirMercadoId;const produto=btn.dataset.produto||'este item';if(!confirm(`Excluir "${produto}" da lista?\n\nO item não será apagado do histórico se já tiver sido comprado.`))return;btn.disabled=true;
+    try{const rr=await chamarApi({action:'excluirItemMercado',token:sessao.token,id});assertOk(rr);toast('Item excluído da lista. 🗑️');await renderListaMercadoDetalhe(c,listaId,filtro,$('busca-mercado')?.value||'');}catch(e){toast(e.message||'Não foi possível excluir o item.');btn.disabled=false;}
+  }));
 }
 
 function itemMercadoV21(x){
-  const ok=String(x.comprado||'NÃO').toUpperCase()==='SIM';
-  const qtd=Number(x.quantidade||0);
-  const qtdTxt=qtd?`${qtd} ${x.unidade||'un'}`:'';
-  const valorUnitario=Number(x.valorUnitario||0);
-  const total=Number(x.valorTotal||0);
+  const ok=String(x.comprado||'NÃO').toUpperCase()==='SIM';const qtd=Number(x.quantidade||0);const qtdTxt=qtd?`${qtd} ${x.unidade||'un'}`:'';const valorUnitario=Number(x.valorUnitario||0);const total=Number(x.valorTotal||0);
+  return `<div class="item-lista item-mercado-v21 ${ok?'item-mercado-comprado':''}"><div class="item-mercado-info"><div class="descricao">${esc(x.produto||'Produto')}</div><div class="meta">${esc(x.categoria||'')}${qtdTxt?' • '+esc(qtdTxt):''}</div>${x.observacao?`<div class="meta">💬 ${esc(x.observacao)}</div>`:''}<div class="mercado-preco-area"><label class="mercado-preco-label">Preço por unidade</label><div class="mercado-preco-linha"><div class="campo-preco-mercado"><span>R$</span><input type="number" min="0" step="0.01" inputmode="decimal" value="${valorUnitario>0?valorUnitario.toFixed(2):''}" placeholder="0,00" data-mercado-preco="${escAttr(x.id)}" aria-label="Preço de ${escAttr(x.produto||'produto')}" ${String(x.compraId||'')?'disabled':''}></div><span class="total-item-mercado">${total>0?'Total: '+moeda(total):'Total: —'}</span></div></div><div class="mercado-item-acoes"><button type="button" class="botao-marcar-mercado ${ok?'ok':''}" data-mercado-id="${escAttr(x.id)}" data-ok="${ok?'SIM':'NÃO'}" ${String(x.compraId||'')?'disabled':''}><span class="icone-check-mercado">${ok?'✓':'○'}</span><span>${ok?'Comprado — tocar para desfazer':'Marcar como comprado'}</span></button>${!String(x.compraId||'')?`<button type="button" class="botao-excluir-mercado" data-excluir-mercado-id="${escAttr(x.id)}" data-produto="${escAttr(x.produto||'item')}">🗑️ Excluir</button>`:''}</div></div></div>`;
+}
 
-  return `<div class="item-lista item-mercado-v21 ${ok?'item-mercado-comprado':''}">
-    <div class="item-mercado-info">
-      <div class="descricao">${esc(x.produto||'Produto')}</div>
-      <div class="meta">${esc(x.categoria||'')}${qtdTxt?' • '+esc(qtdTxt):''}</div>
-      ${x.observacao?`<div class="meta">💬 ${esc(x.observacao)}</div>`:''}
+async function renderNovoItemMercado(c,lista){
+  subtelaModulo='novo-item-mercado';rolarModuloTopo();
+  const categorias=['ESSENCIAL','ADICIONAIS','MISTURA','LIMPEZA/HIGIENE'];const unidades=['un','kg','g','L','ml','pct','cx'];
+  c.innerHTML=cabecalho('➕','Adicionar item',`Lista: ${esc(lista.nome||'')}`)+`<form id="form-novo-item-mercado" class="form-pagamento"><label class="campo-pagamento"><span>📝 Produto *</span><input id="mercado-produto" type="text" maxlength="120" placeholder="Ex.: Arroz 5 kg" required></label><label class="campo-pagamento"><span>🏷️ Categoria</span><select id="mercado-categoria">${categorias.map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label><div class="grid-dois-mercado"><label class="campo-pagamento"><span>🔢 Quantidade</span><input id="mercado-quantidade" type="number" min="0.01" step="0.01" value="1" inputmode="decimal"></label><label class="campo-pagamento"><span>📦 Unidade</span><select id="mercado-unidade">${unidades.map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label></div><label class="campo-pagamento"><span>💬 Observação</span><textarea id="mercado-observacao" maxlength="250" rows="3" placeholder="Marca, tamanho, sabor, preferência..."></textarea></label><div class="aviso-preco-mercado">💡 O preço fica para depois. No mercado, informe o valor real e marque o que foi comprado.</div><div class="cal-form-acoes"><button id="btn-cancelar-item-mercado" type="button" class="botao-cancelar-pagamento">Cancelar</button><button id="btn-salvar-item-mercado" type="submit" class="botao-salvar-pagamento">🛒 Adicionar à lista</button></div></form>`;
+  $('btn-cancelar-item-mercado').onclick=()=>renderListaMercadoDetalhe(c,lista.id);
+  $('form-novo-item-mercado').onsubmit=async e=>{e.preventDefault();const btn=$('btn-salvar-item-mercado');btn.disabled=true;btn.textContent='Salvando...';try{const r=await chamarApi({action:'inserirItemMercado',token:sessao.token,dados:{listaId:lista.id,referencia:lista.referencia||referenciaAtual(),categoria:$('mercado-categoria').value,produto:$('mercado-produto').value.trim(),quantidade:Number($('mercado-quantidade').value||1),unidade:$('mercado-unidade').value,valorUnitario:0,observacao:$('mercado-observacao').value.trim()}});assertOk(r);toast('Item adicionado à lista! 🛒');await renderListaMercadoDetalhe(c,lista.id);}catch(err){toast(err.message||'Não foi possível adicionar o item.');btn.disabled=false;btn.textContent='🛒 Adicionar à lista';}};
+}
 
-      <div class="mercado-preco-area">
-        <label class="mercado-preco-label">Preço por unidade</label>
-        <div class="mercado-preco-linha">
-          <div class="campo-preco-mercado">
-            <span>R$</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              inputmode="decimal"
-              value="${valorUnitario>0?valorUnitario.toFixed(2):''}"
-              placeholder="0,00"
-              data-mercado-preco="${escAttr(x.id)}"
-              aria-label="Preço de ${escAttr(x.produto||'produto')}"
-            >
-          </div>
-          <span class="total-item-mercado">${total>0?'Total: '+moeda(total):'Total: —'}</span>
-        </div>
-      </div>
-
-      <div class="mercado-item-acoes">
-        <button type="button"
-          class="botao-marcar-mercado ${ok?'ok':''}"
-          data-mercado-id="${escAttr(x.id)}"
-          data-ok="${ok?'SIM':'NÃO'}"
-          aria-label="${ok?'Desmarcar como comprado':'Marcar como comprado'}">
-          <span class="icone-check-mercado">${ok?'✓':'○'}</span>
-          <span>${ok?'Comprado — tocar para desfazer':'Marcar como comprado'}</span>
-        </button>
-        <button type="button"
-          class="botao-excluir-mercado"
-          data-excluir-mercado-id="${escAttr(x.id)}"
-          data-produto="${escAttr(x.produto||'item')}">
-          🗑️ Excluir
-        </button>
-      </div>
-    </div>
-  </div>`;
+async function renderFinalizarCompraMercado(c,lista,itens){
+  subtelaModulo='finalizar-compra-mercado';rolarModuloTopo();
+  const selecionados=(itens||[]).filter(x=>String(x.comprado||'NÃO').toUpperCase()==='SIM'&&String(x.naLista||'SIM').toUpperCase()!=='NÃO');
+  if(!selecionados.length){toast('Marque primeiro os itens que vocês realmente compraram.');subtelaModulo=null;return;}
+  const semPreco=selecionados.filter(x=>Number(x.valorTotal||0)<=0);if(semPreco.length){const nomes=semPreco.slice(0,3).map(x=>x.produto).join(', ');toast(`Informe o preço de: ${nomes}${semPreco.length>3?' e outros itens.':''}`);subtelaModulo=null;return;}
+  const totalCalculado=selecionados.reduce((t,x)=>t+Number(x.valorTotal||0),0);const formas=['PIX','CRÉDITO','DÉBITO','DINHEIRO'];
+  c.innerHTML=cabecalho('🧾','Finalizar compra',`Lista: ${esc(lista.nome||'')}`)+`<form id="form-finalizar-compra-mercado" class="form-pagamento"><div class="painel"><div class="painel-titulo"><h3>${selecionados.length} itens comprados</h3><strong class="laranja">${moeda(totalCalculado)}</strong></div><p class="ajuda-campo">Total calculado pelos preços informados. O valor do caixa pode ser diferente.</p><div class="lista-mini-mercado">${selecionados.map(x=>`<div>🛒 ${esc(x.produto)} <span>${moeda(x.valorTotal)}</span></div>`).join('')}</div></div><label class="campo-pagamento"><span>🏪 Onde comprou?</span><input id="compra-mercado-nome" type="text" maxlength="120" placeholder="Ex.: Guanabara"></label><label class="campo-pagamento"><span>💰 Total pago no caixa *</span><input id="compra-mercado-valor" type="number" min="0" step="0.01" inputmode="decimal" value="${totalCalculado.toFixed(2)}" required></label><label class="campo-pagamento"><span>💳 Forma de pagamento</span><select id="compra-mercado-forma">${formas.map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label><label class="campo-pagamento"><span>📎 Comprovante</span><input id="compra-mercado-arquivo" type="file" accept="image/jpeg,image/png,application/pdf"><small class="ajuda-campo">JPG, PNG ou PDF até 10 MB.</small></label><label class="campo-pagamento"><span>💬 Observação</span><textarea id="compra-mercado-observacao" rows="3" maxlength="300" placeholder="Ex.: faltou um produto ou houve substituição."></textarea></label><div class="cal-form-acoes"><button id="btn-cancelar-finalizar-compra" type="button" class="botao-cancelar-pagamento">Cancelar</button><button id="btn-finalizar-compra" type="submit" class="botao-salvar-pagamento">✅ Registrar compra</button></div></form>`;
+  $('btn-cancelar-finalizar-compra').onclick=()=>renderListaMercadoDetalhe(c,lista.id);
+  $('form-finalizar-compra-mercado').onsubmit=async e=>{e.preventDefault();const btn=$('btn-finalizar-compra');btn.disabled=true;btn.textContent='Registrando...';try{const arquivo=$('compra-mercado-arquivo').files?.[0];const payload={action:'registrarCompra',token:sessao.token,dados:{data:dataInputHoje(),referencia:lista.referencia||referenciaAtual(),listaId:lista.id,mercado:$('compra-mercado-nome').value.trim(),tipoCompra:'COMPRA',valorTotal:Number($('compra-mercado-valor').value||0),formaPagamento:$('compra-mercado-forma').value,observacao:$('compra-mercado-observacao').value.trim(),itemIds:selecionados.map(x=>x.id)}};if(arquivo)payload.arquivo=await arquivoParaPayload(arquivo);const r=await chamarApi(payload);assertOk(r);toast(r.listaFinalizada?'Compra registrada e lista finalizada! 🧾✅':'Compra registrada! Os itens não comprados continuam na lista. 🧾✅');await renderListaMercadoDetalhe(c,lista.id);}catch(err){toast(err.message||'Não foi possível registrar a compra.');btn.disabled=false;btn.textContent='✅ Registrar compra';}};
 }
 
 async function renderHistoricoMercado(c, filtroInicial='TODAS', buscaInicial=''){
@@ -1020,7 +1026,7 @@ function renderHistoricoMercadoLista(c,compras,filtro='TODAS',busca=''){
     let okFiltro=true;
     if(filtro==='ESTE_MES') okFiltro=!!d&&d.getMonth()===mesAtual&&d.getFullYear()===anoAtual;
     if(filtro==='MES_ANTERIOR') okFiltro=!!d&&d.getMonth()===mesAnterior&&d.getFullYear()===anoMesAnterior;
-    const texto=[x.mercado,x.tipoCompra,x.formaPagamento,x.observacao].join(' ').toLowerCase();
+    const texto=[x.mercado,x.listaNome,x.tipoCompra,x.formaPagamento,x.observacao].join(' ').toLowerCase();
     return okFiltro && (!buscaNorm||texto.includes(buscaNorm));
   }).sort((a,b)=>{
     const da=dataCompra(a)?.getTime()||0;
@@ -1090,7 +1096,7 @@ function itemHistoricoMercado(x){
     <div class="historico-compra-topo">
       <div>
         <div class="historico-mercado-nome">🏪 ${esc(x.mercado||'Mercado não informado')}</div>
-        <div class="historico-meta">${dataFmt} • ${esc(x.formaPagamento||'Forma não informada')}</div>
+        <div class="historico-meta">${dataFmt} • ${esc(x.formaPagamento||'Forma não informada')}${x.listaNome?` • ${esc(x.listaNome)}`:''}</div>
       </div>
       <div class="historico-total">${moeda(x.valorTotal||0)}</div>
     </div>
@@ -1276,9 +1282,9 @@ async function renderFinalizarCompraMercado(c,itens){
    MERCADO V23 — EXPORTAÇÃO DA LISTA
 ========================================================= */
 
-function abrirExportacaoMercado(itens){
+function abrirExportacaoMercado(itens,nomeLista='Lista de mercado'){
   const ativos=(itens||[]).filter(x=>String(x.naLista||'SIM').toUpperCase()!=='NÃO');
-  const canvas=criarCanvasListaMercado(ativos);
+  const canvas=criarCanvasListaMercado(ativos,nomeLista);
   const imagem=canvas.toDataURL('image/png');
 
   const antigo=document.getElementById('modal-exportacao-mercado');
@@ -1291,7 +1297,7 @@ function abrirExportacaoMercado(itens){
     <div class="modal-exportacao-card">
       <div class="modal-exportacao-topo">
         <div>
-          <h3>🖼️ Lista de mercado</h3>
+          <h3>🖼️ ${esc(nomeLista||'Lista de mercado')}</h3>
           <p>Visualize e salve a lista para levar com você.</p>
         </div>
         <button type="button" class="modal-exportacao-fechar" id="fechar-exportacao-mercado">✕</button>
@@ -1322,7 +1328,7 @@ function abrirExportacaoMercado(itens){
   $('imprimir-lista-pdf').addEventListener('click',()=>imprimirListaMercado(ativos));
 }
 
-function criarCanvasListaMercado(itens){
+function criarCanvasListaMercado(itens,nomeLista='LISTA DE MERCADO'){
   const ordem=['ESSENCIAL','MISTURA','ADICIONAIS','LIMPEZA/HIGIENE'];
   const grupos={};
   ordem.forEach(c=>grupos[c]=[]);
@@ -1349,7 +1355,7 @@ function criarCanvasListaMercado(itens){
   ctx.fillText('LeFe Home',55,58);
   ctx.fillStyle='#ffffff';
   ctx.font='700 30px Arial';
-  ctx.fillText('LISTA DE MERCADO',55,98);
+  ctx.fillText(String(nomeLista||'LISTA DE MERCADO').substring(0,42).toUpperCase(),55,98);
 
   ctx.fillStyle='#222222';
   ctx.font='20px Arial';
