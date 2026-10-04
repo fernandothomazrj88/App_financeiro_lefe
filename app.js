@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='26.10';
+const LEFE_APP_VERSION='26.11';
 
 // Cache leve em memória para o módulo Casa.
 // Evita novas leituras da API ao trocar de aba rapidamente.
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.10');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.11');
       await reg.update();
       console.log('LeFe Home PWA v26.8 ativo.',reg.scope);
     }catch(err){
@@ -1535,15 +1535,20 @@ async function renderCasa(c, abaCasa='hoje'){
   const pendentes=tarefas.filter(x=>String(x.status||'').toUpperCase()==='PENDENTE').length;
   const concluidas=tarefas.filter(x=>String(x.status||'').toUpperCase()==='CONCLUIDA').length;
 
+  const textoBotaoCasa=abaCasa==='rotinas'?'＋ Rotina':'＋ Tarefa';
+
   c.innerHTML=
     `<div class="cabecalho-casa">
       ${cabecalho('🏠','Casa','Rotinas, tarefas e limpeza')}
-      <button id="btn-nova-tarefa-casa" type="button" class="botao-nova-tarefa-casa">＋ Tarefa</button>
+      <button id="btn-nova-tarefa-casa" type="button" class="botao-nova-tarefa-casa">${textoBotaoCasa}</button>
     </div>`+
     `<div class="tabs-casa">${abas.map(([id,nome])=>`<button type="button" class="tab-casa ${id===abaCasa?'ativo':''}" data-aba-casa="${id}">${nome}</button>`).join('')}</div>`+
     `<div id="conteudo-casa-v25"></div>`;
 
-  $('btn-nova-tarefa-casa').addEventListener('click',async()=>{await renderNovaTarefaCasa(c);});
+  $('btn-nova-tarefa-casa').addEventListener('click',async()=>{
+    if(abaCasa==='rotinas') await renderNovaRotinaCasa(c);
+    else await renderNovaTarefaCasa(c);
+  });
   c.querySelectorAll('[data-aba-casa]').forEach(btn=>btn.addEventListener('click',async()=>{
     await renderCasa(c,btn.dataset.abaCasa);
   }));
@@ -1610,7 +1615,9 @@ async function renderCasa(c, abaCasa='hoje'){
 
   if(abaCasa==='rotinas'){
     const rotinas=await obterRotinasCasaCache_();
-    alvo.innerHTML=`<div class="painel"><div class="painel-titulo"><h3>🔁 Rotinas da casa</h3><span>${rotinas.filter(x=>String(x.ativa).toUpperCase()==='SIM').length} ativas</span></div><div class="lista-modulo">${rotinas.length?rotinas.map(itemRotinaCasaV25).join(''):'<div class="vazio">Nenhuma rotina cadastrada.</div>'}</div></div>`;
+    c.__rotinasCasa=rotinas;
+    alvo.innerHTML=`<div class="painel"><div class="painel-titulo"><h3>🔁 Rotinas da casa</h3><span>${rotinas.filter(x=>String(x.ativa).toUpperCase()==='SIM').length} ativas</span></div><div class="lista-modulo">${rotinas.length?rotinas.map(itemRotinaCasaV26).join(''):'<div class="vazio">Nenhuma rotina cadastrada.</div>'}</div></div>`;
+    ligarBotoesRotinaCasa(c);
   }
 
   if(abaCasa==='historico'){
@@ -1702,6 +1709,156 @@ async function renderEditarTarefaCasa(c,item){
     }catch(e){toast(e.message||'Não foi possível atualizar a tarefa.');botao.disabled=false;botao.textContent='💾 Salvar alterações';}
   };
 }
+
+function itemRotinaCasaV26(x){
+  const ativa=String(x.ativa||'').toUpperCase()==='SIM';
+  const freq=String(x.frequencia||'').toUpperCase();
+  const nomesDia=['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+  let detalhe='';
+  if(freq==='DIAS') detalhe=`A cada ${Number(x.intervaloDias||0)} dias`;
+  else if(freq==='SEMANAL') detalhe=`Toda ${nomesDia[Number(x.diaSemana)]||'semana'}`;
+  else if(freq==='SEMANAL_ALTERNADA') detalhe=`Toda ${nomesDia[Number(x.diaSemana)]||'semana'}, alternando`;
+  else if(freq==='MENSAL') detalhe=`Todo dia ${Number(x.diaMes||0)} do mês`;
+  else if(freq==='PRIMEIRO_SABADO') detalhe='Primeiro sábado do mês';
+  else detalhe=freq||'Frequência não definida';
+
+  return `<div class="rotina-casa-item">
+    <div class="rotina-casa-corpo">
+      <div class="rotina-casa-topo"><div><strong>${esc(x.tarefa||'Rotina')}</strong><div class="meta">${esc(detalhe)} • ${esc(x.responsavel||'Ambos')}</div></div><span class="badge badge-casa ${ativa?'concluida':'cancelada'}">${ativa?'ATIVA':'INATIVA'}</span></div>
+      ${x.descricao?`<div class="rotina-descricao">${esc(x.descricao)}</div>`:''}
+      <div class="rotina-casa-acoes">
+        <button type="button" class="rotina-mini" data-editar-rotina="${escAttr(x.id)}">✏️ Editar</button>
+        <button type="button" class="rotina-mini" data-toggle-rotina="${escAttr(x.id)}">${ativa?'⏸️ Desativar':'▶️ Ativar'}</button>
+        <button type="button" class="rotina-mini perigo" data-excluir-rotina="${escAttr(x.id)}">🗑️ Excluir</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function ligarBotoesRotinaCasa(c){
+  c.querySelectorAll('[data-editar-rotina]').forEach(btn=>{
+    btn.onclick=async()=>{
+      try{
+        const item=(c.__rotinasCasa||[]).find(x=>String(x.id)===String(btn.dataset.editarRotina));
+        if(!item)throw new Error('Rotina não encontrada. Atualize a tela e tente novamente.');
+        await renderEditarRotinaCasa(c,item);
+      }catch(e){toast(e.message||'Não foi possível abrir a rotina.');}
+    };
+  });
+
+  c.querySelectorAll('[data-toggle-rotina]').forEach(btn=>{
+    btn.onclick=async()=>{
+      const id=btn.dataset.toggleRotina;
+      const item=(c.__rotinasCasa||[]).find(x=>String(x.id)===String(id));
+      if(!item)return;
+      const ativa=String(item.ativa||'').toUpperCase()==='SIM';
+      btn.disabled=true;
+      try{
+        const rr=await chamarApi({action:'atualizarStatusRotinaCasa',token:sessao.token,id,status:ativa?'NÃO':'SIM'});
+        assertOk(rr); limparCacheCasa(); toast(ativa?'Rotina desativada.':'Rotina ativada.'); await renderCasa(c,'rotinas');
+      }catch(e){toast(e.message||'Não foi possível alterar o status da rotina.');btn.disabled=false;}
+    };
+  });
+
+  c.querySelectorAll('[data-excluir-rotina]').forEach(btn=>{
+    btn.onclick=async()=>{
+      const id=btn.dataset.excluirRotina;
+      const item=(c.__rotinasCasa||[]).find(x=>String(x.id)===String(id));
+      if(!item)return;
+      if(!confirm(`Excluir a rotina "${item.tarefa||'Rotina'}"?\n\nEla será desativada e permanecerá registrada para preservar o histórico. As tarefas já geradas não serão apagadas.`))return;
+      btn.disabled=true;
+      try{
+        const rr=await chamarApi({action:'excluirRotinaCasa',token:sessao.token,id});
+        assertOk(rr); limparCacheCasa(); toast('Rotina excluída. 🗑️'); await renderCasa(c,'rotinas');
+      }catch(e){toast(e.message||'Não foi possível excluir a rotina.');btn.disabled=false;}
+    };
+  });
+}
+
+function rotinaDiasSemanaOptions(selected){
+  const nomes=['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+  return nomes.map((n,i)=>`<option value="${i}" ${Number(selected)===i?'selected':''}>${n}</option>`).join('');
+}
+
+function atualizarCamposFrequenciaRotinaCasa(item){
+  const freq=$('rotina-frequencia')?.value||'DIAS';
+  const wrap=$('rotina-opcoes-frequencia');
+  if(!wrap)return;
+  if(freq==='DIAS'){
+    wrap.innerHTML=`<label class="campo-pagamento"><span>🔢 Intervalo em dias *</span><input id="rotina-intervalo" type="number" min="1" max="365" value="${Number(item?.intervaloDias||2)}" required></label>`;
+  }else if(freq==='SEMANAL'){
+    wrap.innerHTML=`<label class="campo-pagamento"><span>📆 Dia da semana *</span><select id="rotina-dia-semana" required>${rotinaDiasSemanaOptions(item?.diaSemana)}</select></label>`;
+  }else if(freq==='SEMANAL_ALTERNADA'){
+    wrap.innerHTML=`<label class="campo-pagamento"><span>📆 Dia da semana *</span><select id="rotina-dia-semana" required>${rotinaDiasSemanaOptions(item?.diaSemana===undefined?3:item?.diaSemana)}</select></label><label class="campo-pagamento"><span>🔄 Semana do ciclo *</span><select id="rotina-semana-base" required><option value="0" ${Number(item?.semanaBase||0)===0?'selected':''}>1ª semana do ciclo</option><option value="1" ${Number(item?.semanaBase||0)===1?'selected':''}>2ª semana do ciclo</option></select></label>`;
+  }else if(freq==='MENSAL'){
+    wrap.innerHTML=`<label class="campo-pagamento"><span>📅 Dia do mês *</span><input id="rotina-dia-mes" type="number" min="1" max="31" value="${Number(item?.diaMes||1)}" required></label>`;
+  }else{
+    wrap.innerHTML=`<div class="painel rotina-ajuda-frequencia"><small>🗓️ O LeFe Home usará automaticamente o primeiro sábado de cada mês.</small></div>`;
+  }
+}
+
+async function renderFormRotinaCasa(c,item=null){
+  subtelaModulo=item?'editar-rotina-casa':'nova-rotina-casa';
+  rolarModuloTopo();
+  const nomeUsuario=sessao.usuario?.nome||'';
+  const responsavelPadrao=['Fernando','Letícia'].includes(nomeUsuario)?nomeUsuario:'Ambos';
+  const freqInicial=item?.frequencia||'DIAS';
+  const ativaInicial=String(item?.ativa||'SIM').toUpperCase()==='SIM';
+  const titulo=item?'Editar rotina':'Nova rotina';
+  const subtitulo=item?'Atualize a regra desta rotina da casa':'Cadastre uma regra para o LeFe Home gerar as tarefas automaticamente';
+
+  c.innerHTML=cabecalho(item?'✏️':'➕',titulo,subtitulo)+`<form id="form-rotina-casa" class="form-pagamento form-nova-tarefa-casa">
+    <label class="campo-pagamento"><span>📝 Nome da rotina *</span><input id="rotina-tarefa" type="text" maxlength="120" value="${escAttr(item?.tarefa||'')}" placeholder="Ex.: Lavar roupas" required></label>
+    <label class="campo-pagamento"><span>💬 Descrição</span><textarea id="rotina-descricao" maxlength="300" placeholder="Explique o que deve ser feito.">${esc(item?.descricao||'')}</textarea></label>
+    <label class="campo-pagamento"><span>🔁 Frequência *</span><select id="rotina-frequencia" required><option value="DIAS">A cada X dias</option><option value="SEMANAL">Toda semana</option><option value="SEMANAL_ALTERNADA">Semanal alternada</option><option value="MENSAL">Todo dia do mês</option><option value="PRIMEIRO_SABADO">Primeiro sábado do mês</option></select></label>
+    <div id="rotina-opcoes-frequencia"></div>
+    <label class="campo-pagamento"><span>📅 Data de início *</span><input id="rotina-data-inicio" type="date" value="${escAttr(dataInputDateLocal(item?.dataInicio)||dataInputHoje())}" required></label>
+    <label class="campo-pagamento"><span>👤 Responsável *</span><select id="rotina-responsavel" required><option value="Fernando">Fernando</option><option value="Letícia">Letícia</option><option value="Ambos">Ambos</option></select></label>
+    <label class="campo-pagamento"><span>⚙️ Status</span><select id="rotina-ativa"><option value="SIM">Ativa</option><option value="NÃO">Inativa</option></select></label>
+    <div class="painel rotina-ajuda-frequencia"><small>ℹ️ A alteração da regra vale para novas ocorrências. Tarefas que já foram geradas permanecem como estão.</small></div>
+    <div class="cal-form-acoes"><button id="btn-cancelar-rotina" type="button" class="botao-cancelar-pagamento">Cancelar</button><button id="btn-salvar-rotina" type="submit" class="botao-salvar-pagamento">💾 ${item?'Salvar alterações':'Criar rotina'}</button></div>
+  </form>`;
+
+  $('rotina-frequencia').value=freqInicial;
+  $('rotina-responsavel').value=item?.responsavel||responsavelPadrao;
+  $('rotina-ativa').value=ativaInicial?'SIM':'NÃO';
+  atualizarCamposFrequenciaRotinaCasa(item);
+  $('rotina-frequencia').addEventListener('change',()=>atualizarCamposFrequenciaRotinaCasa(null));
+  $('btn-cancelar-rotina').onclick=async()=>{await renderCasa(c,'rotinas');};
+
+  $('form-rotina-casa').onsubmit=async e=>{
+    e.preventDefault();
+    const botao=$('btn-salvar-rotina'); botao.disabled=true; botao.textContent='Salvando...';
+    try{
+      const freq=$('rotina-frequencia').value;
+      const dados={
+        tarefa:$('rotina-tarefa').value.trim(),
+        descricao:$('rotina-descricao').value.trim(),
+        frequencia:freq,
+        intervaloDias:freq==='DIAS'?Number($('rotina-intervalo')?.value||0):'',
+        dataInicio:$('rotina-data-inicio').value,
+        diaSemana:(freq==='SEMANAL'||freq==='SEMANAL_ALTERNADA')?Number($('rotina-dia-semana')?.value||0):(freq==='PRIMEIRO_SABADO'?6:''),
+        semanaBase:freq==='SEMANAL_ALTERNADA'?Number($('rotina-semana-base')?.value||0):'',
+        diaMes:freq==='MENSAL'?Number($('rotina-dia-mes')?.value||0):'',
+        responsavel:$('rotina-responsavel').value,
+        ativa:$('rotina-ativa').value,
+        ordem:item?.ordem||''
+      };
+      if(!dados.tarefa||!dados.dataInicio)throw new Error('Informe nome e data de início.');
+      if(freq==='DIAS'&&dados.intervaloDias<1)throw new Error('Informe um intervalo de dias válido.');
+      if((freq==='SEMANAL'||freq==='SEMANAL_ALTERNADA')&&(dados.diaSemana<0||dados.diaSemana>6))throw new Error('Informe o dia da semana.');
+      if(freq==='SEMANAL_ALTERNADA'&&(dados.semanaBase!==0&&dados.semanaBase!==1))throw new Error('Informe a semana do ciclo.');
+      if(freq==='MENSAL'&&(dados.diaMes<1||dados.diaMes>31))throw new Error('Informe um dia do mês entre 1 e 31.');
+      const acao=item?'atualizarRotinaCasa':'inserirRotinaCasa';
+      const payload={action:acao,token:sessao.token,dados};
+      if(item)payload.id=item.id;
+      const rr=await chamarApi(payload); assertOk(rr); limparCacheCasa(); toast(item?'Rotina atualizada! ✅':'Rotina criada! 🏠'); await renderCasa(c,'rotinas'); rolarModuloTopo();
+    }catch(e){toast(e.message||'Não foi possível salvar a rotina.');botao.disabled=false;botao.textContent=`💾 ${item?'Salvar alterações':'Criar rotina'}`;}
+  };
+}
+
+async function renderNovaRotinaCasa(c){await renderFormRotinaCasa(c,null);}
+async function renderEditarRotinaCasa(c,item){await renderFormRotinaCasa(c,item);}
 
 async function renderNovaTarefaCasa(c){
   subtelaModulo='nova-tarefa-casa';

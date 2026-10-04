@@ -1486,3 +1486,25 @@ body.modal-aberto{overflow:hidden}
 .botao-excluir-tarefa{border-color:#633;color:#ffb1b1;background:#1a1010}
 .botao-excluir-tarefa:hover{border-color:#ff5b5b;color:#fff}
 @media(max-width:520px){.acoes-tarefa-casa{width:100%;justify-content:stretch}.acoes-tarefa-casa>*{flex:1}.botao-editar-tarefa,.botao-excluir-tarefa{min-height:38px}.lado-tarefa-casa{align-items:stretch}}
+
+
+/* =========================================================
+   LEFE HOME V26.11 — ROTINAS CASA CRUD
+========================================================= */
+.rotina-casa-corpo{width:100%;min-width:0}
+.rotina-casa-topo{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.rotina-casa-acoes{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.rotina-mini{border:1px solid #555;background:#171717;color:#fff;border-radius:9px;padding:7px 9px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap}
+.rotina-mini:hover{border-color:var(--laranja)}
+.rotina-mini.perigo{border-color:#633;color:#ffb1b1}
+.rotina-mini:disabled{opacity:.55;cursor:wait}
+.rotina-ajuda-frequencia{margin:0;padding:10px 12px;color:#aaa}
+.rotina-ajuda-frequencia small{font-size:11px;line-height:1.4}
+#rotina-opcoes-frequencia{display:flex;flex-direction:column;gap:11px}
+@media(max-width:420px){
+  .rotina-casa-topo{align-items:flex-start}
+  .rotina-casa-topo .badge-casa{flex:0 0 auto}
+  .rotina-casa-acoes{display:grid;grid-template-columns:repeat(2,1fr)}
+  .rotina-casa-acoes .rotina-mini{width:100%}
+  .rotina-casa-acoes .rotina-mini.perigo{grid-column:1/-1}
+}
