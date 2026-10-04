@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='26.12';
+const LEFE_APP_VERSION='26.13';
 
 // Cache leve em memória para o módulo Casa.
 // Evita novas leituras da API ao trocar de aba rapidamente.
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.12');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.13');
       await reg.update();
       console.log('LeFe Home PWA v26.8 ativo.',reg.scope);
     }catch(err){
@@ -1112,62 +1112,6 @@ function itemHistoricoMercado(x){
   </div>`;
 }
 
-async function renderNovoItemMercado(c){
-  subtelaModulo='novo-item-mercado';
-  rolarModuloTopo();
-
-  const categorias=['ESSENCIAL','ADICIONAIS','MISTURA','LIMPEZA/HIGIENE'];
-  const unidades=['un','kg','g','L','ml','pct','cx'];
-
-  c.innerHTML=cabecalho('➕','Adicionar item','Monte a lista agora. O preço será colocado no mercado')+
-  `<form id="form-novo-item-mercado" class="form-pagamento">
-    <label class="campo-pagamento"><span>📝 Produto *</span><input id="mercado-produto" type="text" maxlength="120" placeholder="Ex.: Arroz 5 kg" required></label>
-    <label class="campo-pagamento"><span>🏷️ Categoria</span><select id="mercado-categoria">${categorias.map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label>
-    <div class="grid-dois-mercado">
-      <label class="campo-pagamento"><span>🔢 Quantidade</span><input id="mercado-quantidade" type="number" min="0.01" step="0.01" value="1" inputmode="decimal"></label>
-      <label class="campo-pagamento"><span>📦 Unidade</span><select id="mercado-unidade">${unidades.map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label>
-    </div>
-    <label class="campo-pagamento"><span>💬 Observação</span><textarea id="mercado-observacao" maxlength="250" rows="3" placeholder="Marca, tamanho, sabor, preferência..."></textarea></label>
-    <div class="aviso-preco-mercado">💡 Deixe o preço para depois. No mercado, informe o valor real de cada item e marque o que foi comprado.</div>
-    <button id="btn-salvar-item-mercado" type="submit" class="botao-salvar-pagamento">🛒 Adicionar à lista</button>
-    <button id="btn-cancelar-item-mercado" type="button" class="botao-cancelar-pagamento">Cancelar</button>
-  </form>`;
-
-  $('btn-cancelar-item-mercado').addEventListener('click',()=>renderMercado(c));
-
-  $('form-novo-item-mercado').addEventListener('submit',async e=>{
-    e.preventDefault();
-
-    const btn=$('btn-salvar-item-mercado');
-    btn.disabled=true;
-    btn.textContent='Salvando...';
-
-    try{
-      const r=await chamarApi({
-        action:'inserirItemMercado',
-        token:sessao.token,
-        dados:{
-          referencia:referenciaAtual(),
-          categoria:$('mercado-categoria').value,
-          produto:$('mercado-produto').value.trim(),
-          quantidade:Number($('mercado-quantidade').value||1),
-          unidade:$('mercado-unidade').value,
-          valorUnitario:0,
-          observacao:$('mercado-observacao').value.trim()
-        }
-      });
-
-      assertOk(r);
-      toast('Item adicionado à lista! 🛒');
-      await renderMercado(c);
-      rolarModuloTopo();
-    }catch(err){
-      toast(err.message||'Não foi possível adicionar o item.');
-      btn.disabled=false;
-      btn.textContent='🛒 Adicionar à lista';
-    }
-  });
-}
 
 async function renderFinalizarCompraMercado(c,itens){
   subtelaModulo='finalizar-compra-mercado';
