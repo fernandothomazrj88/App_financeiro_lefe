@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='26.15';
+const LEFE_APP_VERSION='26.16';
 
 // Cache leve em memória para o módulo Casa.
 // Evita novas leituras da API ao trocar de aba rapidamente.
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.15');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.16');
       await reg.update();
       console.log('LeFe Home PWA v26.8 ativo.',reg.scope);
     }catch(err){
@@ -937,31 +937,38 @@ function renderListaMercado(c,lista,itens,filtro='TODAS',busca=''){
   const buscaNorm=String(busca||'').trim().toLowerCase();
   const listaId=String(lista.id);
   const finalizada=String(lista.status||'').toUpperCase()==='FINALIZADA';
-  let ativos=(itens||[]).filter(x=>String(x.naLista||'SIM').toUpperCase()!=='NÃO');
-  let visiveis=ativos.filter(x=>{const cat=String(x.categoria||'').toUpperCase();const texto=[x.produto,x.categoria,x.observacao].join(' ').toLowerCase();return (filtro==='TODAS'||cat===filtro)&&(!buscaNorm||texto.includes(buscaNorm));});
-  const pendentes=ativos.filter(x=>String(x.comprado||'NÃO').toUpperCase()!=='SIM');
-  const comprados=ativos.filter(x=>String(x.comprado||'NÃO').toUpperCase()==='SIM');
+  const ativos=(itens||[]).filter(x=>String(x.naLista||'SIM').toUpperCase()!=='NÃO');
+  // Em listas finalizadas, os itens já saíram da lista ativa (NA_LISTA=NÃO),
+  // mas continuam vinculados à lista e precisam permanecer visíveis para consulta.
+  const itensExibicao=finalizada?(itens||[]):ativos;
+  const visiveis=itensExibicao.filter(x=>{const cat=String(x.categoria||'').toUpperCase();const texto=[x.produto,x.categoria,x.observacao].join(' ').toLowerCase();return (filtro==='TODAS'||cat===filtro)&&(!buscaNorm||texto.includes(buscaNorm));});
+  const pendentes=finalizada?[]:ativos.filter(x=>String(x.comprado||'NÃO').toUpperCase()!=='SIM');
+  const comprados=finalizada
+    ? itensExibicao.filter(x=>String(x.comprado||'NÃO').toUpperCase()==='SIM'||String(x.compraId||'').trim()!=='')
+    : ativos.filter(x=>String(x.comprado||'NÃO').toUpperCase()==='SIM');
   const totalComprado=comprados.reduce((t,x)=>t+Number(x.valorTotal||0),0);
   const semPreco=comprados.filter(x=>Number(x.valorTotal||0)<=0);
   const avisoPreco=semPreco.length?`<div class="aviso-preco-mercado">⚠️ ${semPreco.length} item(ns) marcado(s) como comprado ainda está(ão) sem preço.</div>`:'';
+  const tituloItens=finalizada?'Itens da compra':'Itens desta lista';
+  const textoVazio=finalizada?'Nenhum item registrado nesta compra.':'Nenhum item encontrado nesta lista.';
 
   c.innerHTML=`<div class="cabecalho-modulo cabecalho-mercado">
     <div class="icone-grande">🛒</div><div><h2>${esc(lista.nome||'Lista de mercado')}</h2><p>${finalizada?'Lista finalizada':'Lista em andamento'}</p></div>
     <div class="acoes-mercado-topo"><button id="btn-voltar-listas-mercado" type="button" class="botao-exportar-mercado">← Listas</button></div>
   </div>
-  <div class="cards-resumo cards-resumo-mercado"><div class="card-resumo"><small>Na lista</small><strong class="laranja">${ativos.length}</strong></div><div class="card-resumo"><small>Comprados</small><strong class="verde">${comprados.length}</strong></div><div class="card-resumo"><small>Total comprado</small><strong class="laranja">${moeda(totalComprado)}</strong></div></div>
+  <div class="cards-resumo cards-resumo-mercado"><div class="card-resumo"><small>${finalizada?'Itens da compra':'Na lista'}</small><strong class="laranja">${itensExibicao.length}</strong></div><div class="card-resumo"><small>Comprados</small><strong class="verde">${comprados.length}</strong></div><div class="card-resumo"><small>${finalizada?'Total da compra':'Total comprado'}</small><strong class="laranja">${moeda(totalComprado)}</strong></div></div>
   <div class="painel mercado-acoes-principais">
     <div class="barra-mercado-superior">
       ${!finalizada?`<button id="btn-novo-item-mercado" type="button" class="botao-nova-despesa">＋ Item</button><button id="btn-finalizar-compra-mercado" type="button" class="botao-salvar-pagamento">🧾 Finalizar compra</button>`:''}
       <button id="btn-exportar-lista-mercado" type="button" class="botao-exportar-mercado">🖼️ Salvar lista</button>
       <button id="btn-historico-mercado" type="button" class="botao-exportar-mercado">📜 Histórico</button>
     </div>
-    <div class="ajuda-campo">${finalizada?'Esta lista já foi finalizada. Você pode consultar os itens e o histórico.':'Em casa, monte a lista sem preços. No mercado, informe o preço real e marque o que foi comprado.'}</div>
+    <div class="ajuda-campo">${finalizada?'Esta lista já foi finalizada. Os itens, preços e a compra registrada ficam disponíveis para consulta.':'Em casa, monte a lista sem preços. No mercado, informe o preço real e marque o que foi comprado.'}</div>
     ${avisoPreco}
     <div class="busca-mercado-wrap"><span>🔎</span><input id="busca-mercado" type="search" value="${escAttr(busca)}" placeholder="Buscar produto..." autocomplete="off"></div>
     <div class="barra-acoes barra-acoes-mercado">${categorias.map(cat=>`<button type="button" class="chip ${cat===filtro?'ativo':''}" data-filtro-mercado="${escAttr(cat)}">${esc(cat==='LIMPEZA/HIGIENE'?'Limpeza/Higiene':cat.charAt(0)+cat.slice(1).toLowerCase())}</button>`).join('')}</div>
   </div>
-  <div class="painel"><div class="painel-titulo"><h3>📋 Itens desta lista</h3><span>${visiveis.length}${pendentes.length?' • '+pendentes.length+' pendentes':''}</span></div><div class="lista-modulo lista-mercado-v21">${visiveis.length?visiveis.map(itemMercadoV21).join(''):'<div class="vazio">Nenhum item encontrado nesta lista.</div>'}</div></div>`;
+  <div class="painel"><div class="painel-titulo"><h3>📋 ${tituloItens}</h3><span>${visiveis.length}${pendentes.length?' • '+pendentes.length+' pendentes':''}</span></div><div class="lista-modulo lista-mercado-v21">${visiveis.length?visiveis.map(itemMercadoV21).join(''):`<div class="vazio">${textoVazio}</div>`}</div></div>`;
 
   $('btn-voltar-listas-mercado').onclick=()=>renderMercado(c);
   $('btn-historico-mercado').onclick=()=>renderHistoricoMercado(c);
