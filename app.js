@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='26.14';
+const LEFE_APP_VERSION='26.15';
 
 // Cache leve em memória para o módulo Casa.
 // Evita novas leituras da API ao trocar de aba rapidamente.
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.14');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.15');
       await reg.update();
       console.log('LeFe Home PWA v26.8 ativo.',reg.scope);
     }catch(err){
@@ -830,16 +830,35 @@ function renderListasMercado(c,listas){
     <div class="painel mercado-listas-intro">
       <div class="painel-titulo"><h3>📋 Minhas listas</h3><span>${(listas||[]).length}</span></div>
       <p class="ajuda-campo">Cada lista é independente. Toque em uma lista para abrir os itens, colocar preços e finalizar a compra.</p>
-      <div class="barra-mercado-superior">
-        <button id="btn-historico-mercado" type="button" class="botao-exportar-mercado">📜 Histórico de compras</button>
-      </div>
     </div>
     ${abertas.length?`<div class="painel"><div class="painel-titulo"><h3>🛒 Em andamento</h3><span>${abertas.length}</span></div><div class="lista-mercado-cards">${abertas.map(cardLista).join('')}</div></div>`:''}
-    ${finalizadas.length?`<div class="painel"><div class="painel-titulo"><h3>🧾 Finalizadas e arquivadas</h3><span>${finalizadas.length}</span></div><div class="lista-mercado-cards">${finalizadas.map(cardLista).join('')}</div></div>`:''}
+    ${finalizadas.length?`<div class="painel mercado-finalizadas-painel">
+      <button id="btn-toggle-finalizadas-mercado" type="button" class="mercado-finalizadas-toggle" aria-expanded="false">
+        <span class="mercado-finalizadas-toggle-titulo"><span>🧾</span><strong>Compras finalizadas</strong></span>
+        <span class="mercado-finalizadas-toggle-direita"><span>${finalizadas.length}</span><span id="icone-toggle-finalizadas-mercado">›</span></span>
+      </button>
+      <div id="lista-finalizadas-mercado" class="mercado-finalizadas-conteudo" hidden>
+        <p class="ajuda-campo">Compras já registradas ficam aqui para consulta, sem ocupar a tela principal.</p>
+        <div class="barra-mercado-superior"><button id="btn-historico-mercado" type="button" class="botao-exportar-mercado">📜 Histórico de compras</button></div>
+        <div class="lista-mercado-cards">${finalizadas.map(cardLista).join('')}</div>
+      </div>
+    </div>`:''}
     ${!(listas||[]).length?`<div class="painel"><div class="vazio">Você ainda não criou nenhuma lista. Clique em ＋ Lista para começar.</div></div>`:''}`;
 
   $('btn-nova-lista-mercado').onclick=()=>renderNovaListaMercado(c);
-  $('btn-historico-mercado').onclick=()=>renderHistoricoMercado(c);
+  const btnFinalizadas=$('btn-toggle-finalizadas-mercado');
+  if(btnFinalizadas){
+    const painelFinalizadas=$('lista-finalizadas-mercado');
+    const iconeFinalizadas=$('icone-toggle-finalizadas-mercado');
+    btnFinalizadas.onclick=()=>{
+      const abrir=painelFinalizadas.hidden;
+      painelFinalizadas.hidden=!abrir;
+      btnFinalizadas.setAttribute('aria-expanded',abrir?'true':'false');
+      iconeFinalizadas.textContent=abrir?'⌄':'›';
+    };
+  }
+  const btnHistorico=$('btn-historico-mercado');
+  if(btnHistorico)btnHistorico.onclick=()=>renderHistoricoMercado(c);
 
   c.querySelectorAll('[data-abrir-lista-mercado]').forEach(btn=>btn.onclick=()=>renderListaMercadoDetalhe(c,btn.dataset.abrirListaMercado));
   c.querySelectorAll('[data-editar-lista-mercado]').forEach(btn=>btn.onclick=()=>{

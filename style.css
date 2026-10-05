@@ -1510,7 +1510,7 @@ body.modal-aberto{overflow:hidden}
 }
 
 /* =========================================================
-   MERCADO V26.14 — MÚLTIPLAS LISTAS
+   MERCADO V26.15 — MÚLTIPLAS LISTAS
 ========================================================= */
 .mercado-listas-intro{padding:12px}
 .lista-mercado-cards{display:flex;flex-direction:column;gap:10px}
@@ -1530,3 +1530,15 @@ body.modal-aberto{overflow:hidden}
   .lista-mercado-card-topo{align-items:flex-start}
   .lista-mercado-card-topo .badge{flex:0 0 auto}
 }
+
+
+/* =========================================================
+   MERCADO V26.15 — COMPRAS FINALIZADAS RECOLHIDAS
+========================================================= */
+.mercado-finalizadas-painel{padding:10px}
+.mercado-finalizadas-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;background:transparent;border:0;color:#fff;padding:8px 4px;cursor:pointer;text-align:left}
+.mercado-finalizadas-toggle-titulo{display:flex;align-items:center;gap:9px;font-size:18px}
+.mercado-finalizadas-toggle-direita{display:flex;align-items:center;gap:12px;font-size:15px}
+.mercado-finalizadas-toggle-direita>span:last-child{font-size:25px;line-height:1;color:var(--laranja)}
+.mercado-finalizadas-conteudo{border-top:1px solid #333;margin-top:8px;padding-top:10px}
+.mercado-finalizadas-conteudo[hidden]{display:none}
