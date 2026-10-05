@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='26.13';
+const LEFE_APP_VERSION='26.14';
 
 // Cache leve em memória para o módulo Casa.
 // Evita novas leituras da API ao trocar de aba rapidamente.
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.13');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.14');
       await reg.update();
       console.log('LeFe Home PWA v26.8 ativo.',reg.scope);
     }catch(err){
@@ -1112,115 +1112,6 @@ function itemHistoricoMercado(x){
   </div>`;
 }
 
-
-async function renderFinalizarCompraMercado(c,itens){
-  subtelaModulo='finalizar-compra-mercado';
-  rolarModuloTopo();
-
-  const selecionados=(itens||[]).filter(x=>
-    String(x.comprado||'NÃO').toUpperCase()==='SIM' &&
-    String(x.naLista||'SIM').toUpperCase()!=='NÃO'
-  );
-
-  if(!selecionados.length){
-    toast('Marque primeiro os itens que vocês realmente compraram.');
-    subtelaModulo=null;
-    return;
-  }
-
-  const semPreco=selecionados.filter(x=>Number(x.valorTotal||0)<=0);
-
-  if(semPreco.length){
-    const nomes=semPreco.slice(0,3).map(x=>x.produto).join(', ');
-    toast(`Informe o preço de: ${nomes}${semPreco.length>3?' e outros itens.':''}`);
-    subtelaModulo=null;
-    return;
-  }
-
-  const totalCalculado=selecionados.reduce((t,x)=>t+Number(x.valorTotal||0),0);
-  const formas=['PIX','CRÉDITO','DÉBITO','DINHEIRO'];
-
-  c.innerHTML=cabecalho('🧾','Finalizar compra','Confira o total dos itens que vocês compraram')+
-  `<form id="form-finalizar-compra-mercado" class="form-pagamento">
-    <div class="painel">
-      <div class="painel-titulo"><h3>${selecionados.length} itens comprados</h3><strong class="laranja">${moeda(totalCalculado)}</strong></div>
-      <p class="ajuda-campo">Esse é o total calculado pelos preços informados para cada item.</p>
-      <div class="lista-mini-mercado">${selecionados.map(x=>`<div>🛒 ${esc(x.produto)} <span>${moeda(x.valorTotal)}</span></div>`).join('')}</div>
-    </div>
-
-    <label class="campo-pagamento">
-      <span>🏪 Onde comprou?</span>
-      <input id="compra-mercado-nome" type="text" maxlength="120" placeholder="Ex.: Guanabara">
-    </label>
-
-    <label class="campo-pagamento">
-      <span>💰 Total pago no caixa *</span>
-      <input id="compra-mercado-valor" type="number" min="0" step="0.01" inputmode="decimal" value="${totalCalculado.toFixed(2)}" required>
-      <small class="ajuda-campo">Pode ajustar se houver desconto, acréscimo ou diferença no caixa.</small>
-    </label>
-
-    <label class="campo-pagamento">
-      <span>💳 Forma de pagamento</span>
-      <select id="compra-mercado-forma">${formas.map(x=>`<option value="${x}">${x}</option>`).join('')}</select>
-    </label>
-
-    <label class="campo-pagamento">
-      <span>📎 Comprovante</span>
-      <input id="compra-mercado-arquivo" type="file" accept="image/jpeg,image/png,application/pdf">
-      <small class="ajuda-campo">JPG, PNG ou PDF até 10 MB.</small>
-    </label>
-
-    <label class="campo-pagamento">
-      <span>💬 Observação</span>
-      <textarea id="compra-mercado-observacao" rows="3" maxlength="300" placeholder="Ex.: faltou um produto ou houve substituição."></textarea>
-    </label>
-
-    <button id="btn-finalizar-compra" type="submit" class="botao-salvar-pagamento">✅ Registrar compra</button>
-    <button id="btn-cancelar-finalizar-compra" type="button" class="botao-cancelar-pagamento">Cancelar</button>
-  </form>`;
-
-  $('btn-cancelar-finalizar-compra').addEventListener('click',()=>renderMercado(c));
-
-  $('form-finalizar-compra-mercado').addEventListener('submit',async e=>{
-    e.preventDefault();
-
-    const btn=$('btn-finalizar-compra');
-    btn.disabled=true;
-    btn.textContent='Registrando...';
-
-    try{
-      const arquivo=$('compra-mercado-arquivo').files?.[0];
-
-      const payload={
-        action:'registrarCompra',
-        token:sessao.token,
-        dados:{
-          data:dataInputHoje(),
-          referencia:referenciaAtual(),
-          mercado:$('compra-mercado-nome').value.trim(),
-          tipoCompra:'MENSAL',
-          valorTotal:Number($('compra-mercado-valor').value||0),
-          formaPagamento:$('compra-mercado-forma').value,
-          observacao:$('compra-mercado-observacao').value.trim(),
-          itemIds:selecionados.map(x=>x.id)
-        }
-      };
-
-      if(arquivo) payload.arquivo=await arquivoParaPayload(arquivo);
-
-      const r=await chamarApi(payload);
-      assertOk(r);
-
-      toast('Compra registrada e itens arquivados! 🧾✅');
-      await renderMercado(c);
-      rolarModuloTopo();
-    }catch(err){
-      toast(err.message||'Não foi possível registrar a compra.');
-      btn.disabled=false;
-      btn.textContent='✅ Registrar compra';
-    }
-  });
-}
 
 /* =========================================================
    MERCADO V23 — EXPORTAÇÃO DA LISTA
