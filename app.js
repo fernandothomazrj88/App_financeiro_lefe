@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='27.0.1';
+const LEFE_APP_VERSION='27.0.2';
 
 // Cache leve em memória para o módulo Casa.
 // Evita novas leituras da API ao trocar de aba rapidamente.
@@ -63,9 +63,9 @@ document.addEventListener('DOMContentLoaded',()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=27.0.1');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=27.0.2');
       await reg.update();
-      console.log('LeFe Home PWA v27.0.1 ativo.',reg.scope);
+      console.log('LeFe Home PWA v27.0.2 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
@@ -804,7 +804,8 @@ function renderListasMercado(c,listas){
     const statusClass=aberta?'concluida':statusTxt==='FINALIZADA'?'concluida':'cancelada';
     const data=x.dataAtualizacao||x.dataCriacao;
     const dataFmt=data?new Date(data).toLocaleDateString('pt-BR'):'—';
-    const podeExcluir=!Number(x.itens||0)&&!Number(x.totalCompras||0);
+    const podeExcluir=aberta ? (!Number(x.itens||0)&&!Number(x.totalCompras||0)) : true;
+    const textoExcluir=aberta?'🗑️ Excluir':'🗑️ Excluir lista e compras';
     return `<div class="lista-mercado-card">
       <button type="button" class="lista-mercado-card-main" data-abrir-lista-mercado="${escAttr(x.id)}">
         <div class="lista-mercado-card-icone">${aberta?'🛒':'🧾'}</div>
@@ -817,7 +818,7 @@ function renderListasMercado(c,listas){
       </button>
       <div class="lista-mercado-card-acoes">
         <button type="button" class="rotina-mini" data-editar-lista-mercado="${escAttr(x.id)}">✏️ Renomear</button>
-        ${podeExcluir?`<button type="button" class="rotina-mini perigo" data-excluir-lista-mercado="${escAttr(x.id)}">🗑️ Excluir</button>`:''}
+        ${podeExcluir?`<button type="button" class="rotina-mini perigo" data-excluir-lista-mercado="${escAttr(x.id)}">${textoExcluir}</button>`:''}
       </div>
     </div>`;
   };
@@ -867,11 +868,19 @@ function renderListasMercado(c,listas){
   });
   c.querySelectorAll('[data-excluir-lista-mercado]').forEach(btn=>btn.onclick=async()=>{
     const id=btn.dataset.excluirListaMercado;
-    if(!confirm('Excluir esta lista vazia?'))return;
+    const item=(listas||[]).find(x=>String(x.id)===String(id));
+    if(!item)return;
+    const finalizada=String(item.status||'').toUpperCase()==='FINALIZADA';
+    const mensagem=finalizada
+      ? `Excluir a lista \"${item.nome||'esta compra'}\"?\n\nIsso apagará a lista finalizada, as compras vinculadas, os itens de teste e os lançamentos do Financeiro criados pelo Mercado.\n\nEssa ação não pode ser desfeita.`
+      : 'Excluir esta lista vazia?';
+    if(!confirm(mensagem))return;
     btn.disabled=true;
     try{
       const r=await chamarApi({action:'excluirListaMercado',token:sessao.token,id});
-      assertOk(r);toast('Lista excluída. 🗑️');await renderMercado(c);
+      assertOk(r);
+      toast(finalizada?'Lista e compras de teste excluídas com segurança. 🗑️':'Lista excluída. 🗑️');
+      await renderMercado(c);
     }catch(e){toast(e.message||'Não foi possível excluir a lista.');btn.disabled=false;}
   });
 }
