@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='26.16';
+const LEFE_APP_VERSION='27.0';
 
 // Cache leve em memória para o módulo Casa.
 // Evita novas leituras da API ao trocar de aba rapidamente.
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=26.16');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=27.0');
       await reg.update();
       console.log('LeFe Home PWA v26.8 ativo.',reg.scope);
     }catch(err){
@@ -811,7 +811,7 @@ function renderListasMercado(c,listas){
         <div class="lista-mercado-card-corpo">
           <div class="lista-mercado-card-topo"><strong>${esc(x.nome||'Lista sem nome')}</strong><span class="badge badge-casa ${statusClass}">${statusTxt}</span></div>
           <div class="meta">${Number(x.itens||0)} ${Number(x.itens||0)===1?'item':'itens'} • ${Number(x.pendentes||0)} pendentes${Number(x.quantidadeCompras||0)?' • '+Number(x.quantidadeCompras||0)+' compra(s)':''}</div>
-          <div class="meta">Atualizada em ${dataFmt}${Number(x.totalCompras||0)>0?' • Gasto: '+moeda(x.totalCompras):''}</div>
+          <div class="meta">Atualizada em ${dataFmt}${aberta?' • Total: '+moeda(x.totalLista||0)+(Number(x.semPreco||0)?' • '+Number(x.semPreco)+' sem preço':''):(Number(x.totalCompras||0)>0?' • Gasto: '+moeda(x.totalCompras):'')}</div>
         </div>
         <span class="lista-mercado-seta">›</span>
       </button>
@@ -829,7 +829,7 @@ function renderListasMercado(c,listas){
     </div>
     <div class="painel mercado-listas-intro">
       <div class="painel-titulo"><h3>📋 Minhas listas</h3><span>${(listas||[]).length}</span></div>
-      <p class="ajuda-campo">Cada lista é independente. Toque em uma lista para abrir os itens, colocar preços e finalizar a compra.</p>
+      <p class="ajuda-campo">Monte em casa ou direto no mercado. Ao adicionar um item, você já pode informar o preço e acompanhar o total em tempo real.</p>
     </div>
     ${abertas.length?`<div class="painel"><div class="painel-titulo"><h3>🛒 Em andamento</h3><span>${abertas.length}</span></div><div class="lista-mercado-cards">${abertas.map(cardLista).join('')}</div></div>`:''}
     ${finalizadas.length?`<div class="painel mercado-finalizadas-painel">
@@ -932,82 +932,233 @@ async function renderListaMercadoDetalhe(c,listaId,filtroInicial='TODAS',buscaIn
   }catch(e){toast(e.message||'Não foi possível abrir a lista.');await renderMercado(c);}
 }
 
+function calcularResumoMercado(itens,finalizada=false){
+  const base=Array.isArray(itens)?itens.filter(x=>finalizada||String(x.naLista||'SIM').toUpperCase()!=='NÃO'):[];
+  const precificados=base.filter(x=>Number(x.valorTotal||0)>0);
+  const semPreco=base.filter(x=>Number(x.valorTotal||0)<=0);
+  const comprados=base.filter(x=>String(x.comprado||'NÃO').toUpperCase()==='SIM'||String(x.compraId||'').trim()!=='');
+  const pendentes=base.filter(x=>!comprados.includes(x));
+  const totalLista=base.reduce((t,x)=>t+Number(x.valorTotal||0),0);
+  const totalComprado=comprados.reduce((t,x)=>t+Number(x.valorTotal||0),0);
+  const totalPendente=pendentes.reduce((t,x)=>t+Number(x.valorTotal||0),0);
+  return {base,precificados,semPreco,comprados,pendentes,totalLista,totalComprado,totalPendente};
+}
+
+function atualizarResumoMercadoDOM(itens,finalizada=false){
+  const r=calcularResumoMercado(itens,finalizada);
+  const total=$('mercado-total-lista');
+  const comprado=$('mercado-total-comprado');
+  const pendente=$('mercado-total-pendente');
+  const semPreco=$('mercado-sem-preco');
+  const contador=$('mercado-contador-itens');
+  if(total)total.textContent=moeda(r.totalLista);
+  if(comprado)comprado.textContent=moeda(r.totalComprado);
+  if(pendente)pendente.textContent=moeda(r.totalPendente);
+  if(semPreco){
+    semPreco.textContent=r.semPreco.length?`${r.semPreco.length} ${r.semPreco.length===1?'item sem preço':'itens sem preço'}`:'Todos os itens têm preço';
+    semPreco.classList.toggle('ok',r.semPreco.length===0);
+  }
+  if(contador)contador.textContent=`${r.base.length} ${r.base.length===1?'item':'itens'} • ${r.comprados.length} comprado${r.comprados.length===1?'':'s'}`;
+  return r;
+}
+
 function renderListaMercado(c,lista,itens,filtro='TODAS',busca=''){
   const categorias=['TODAS','ESSENCIAL','ADICIONAIS','MISTURA','LIMPEZA/HIGIENE'];
   const buscaNorm=String(busca||'').trim().toLowerCase();
   const listaId=String(lista.id);
   const finalizada=String(lista.status||'').toUpperCase()==='FINALIZADA';
-  const ativos=(itens||[]).filter(x=>String(x.naLista||'SIM').toUpperCase()!=='NÃO');
-  // Em listas finalizadas, os itens já saíram da lista ativa (NA_LISTA=NÃO),
-  // mas continuam vinculados à lista e precisam permanecer visíveis para consulta.
+  const resumo=calcularResumoMercado(itens,finalizada);
+  const ativos=resumo.base;
   const itensExibicao=finalizada?(itens||[]):ativos;
-  const visiveis=itensExibicao.filter(x=>{const cat=String(x.categoria||'').toUpperCase();const texto=[x.produto,x.categoria,x.observacao].join(' ').toLowerCase();return (filtro==='TODAS'||cat===filtro)&&(!buscaNorm||texto.includes(buscaNorm));});
-  const pendentes=finalizada?[]:ativos.filter(x=>String(x.comprado||'NÃO').toUpperCase()!=='SIM');
-  const comprados=finalizada
-    ? itensExibicao.filter(x=>String(x.comprado||'NÃO').toUpperCase()==='SIM'||String(x.compraId||'').trim()!=='')
-    : ativos.filter(x=>String(x.comprado||'NÃO').toUpperCase()==='SIM');
-  const totalComprado=comprados.reduce((t,x)=>t+Number(x.valorTotal||0),0);
-  const semPreco=comprados.filter(x=>Number(x.valorTotal||0)<=0);
-  const avisoPreco=semPreco.length?`<div class="aviso-preco-mercado">⚠️ ${semPreco.length} item(ns) marcado(s) como comprado ainda está(ão) sem preço.</div>`:'';
+  const visiveis=itensExibicao.filter(x=>{
+    const cat=String(x.categoria||'').toUpperCase();
+    const texto=[x.produto,x.categoria,x.observacao].join(' ').toLowerCase();
+    return (filtro==='TODAS'||cat===filtro)&&(!buscaNorm||texto.includes(buscaNorm));
+  });
+  const avisoPreco=resumo.semPreco.length?`<div class="aviso-preco-mercado">⚠️ ${resumo.semPreco.length} ${resumo.semPreco.length===1?'item ainda está':'itens ainda estão'} sem preço. O total considera somente os valores informados.</div>`:'';
   const tituloItens=finalizada?'Itens da compra':'Itens desta lista';
   const textoVazio=finalizada?'Nenhum item registrado nesta compra.':'Nenhum item encontrado nesta lista.';
 
   c.innerHTML=`<div class="cabecalho-modulo cabecalho-mercado">
-    <div class="icone-grande">🛒</div><div><h2>${esc(lista.nome||'Lista de mercado')}</h2><p>${finalizada?'Lista finalizada':'Lista em andamento'}</p></div>
+    <div class="icone-grande">🛒</div><div><h2>${esc(lista.nome||'Lista de mercado')}</h2><p>${finalizada?'Compra finalizada':'Compra em andamento'}</p></div>
     <div class="acoes-mercado-topo"><button id="btn-voltar-listas-mercado" type="button" class="botao-exportar-mercado">← Listas</button></div>
   </div>
-  <div class="cards-resumo cards-resumo-mercado"><div class="card-resumo"><small>${finalizada?'Itens da compra':'Na lista'}</small><strong class="laranja">${itensExibicao.length}</strong></div><div class="card-resumo"><small>Comprados</small><strong class="verde">${comprados.length}</strong></div><div class="card-resumo"><small>${finalizada?'Total da compra':'Total comprado'}</small><strong class="laranja">${moeda(totalComprado)}</strong></div></div>
+
+  <section class="mercado-total-card" aria-label="Resumo da compra">
+    <div class="mercado-total-principal">
+      <small>Total da lista</small>
+      <strong id="mercado-total-lista">${moeda(resumo.totalLista)}</strong>
+      <span id="mercado-sem-preco">${resumo.semPreco.length?`${resumo.semPreco.length} ${resumo.semPreco.length===1?'item sem preço':'itens sem preço'}`:'Todos os itens têm preço'}</span>
+    </div>
+    <div class="mercado-total-detalhes">
+      <div><small>Comprado</small><strong id="mercado-total-comprado">${moeda(resumo.totalComprado)}</strong></div>
+      <div><small>Falta comprar</small><strong id="mercado-total-pendente">${moeda(resumo.totalPendente)}</strong></div>
+    </div>
+  </section>
+
+  ${!finalizada?`<form id="form-mercado-quick-add" class="painel mercado-quick-add">
+    <div class="mercado-quick-titulo"><div><strong>⚡ Adicionar item</strong><small>Coloque o preço agora, se já estiver no mercado.</small></div><span>Rápido</span></div>
+    <div class="mercado-quick-grid">
+      <label class="campo-pagamento mercado-quick-produto"><span>📝 Produto *</span><input id="mercado-quick-produto" type="text" maxlength="120" placeholder="Ex.: Arroz 5 kg" autocomplete="off" required></label>
+      <label class="campo-pagamento"><span>🏷️ Categoria</span><select id="mercado-quick-categoria">${['ESSENCIAL','ADICIONAIS','MISTURA','LIMPEZA/HIGIENE'].map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label>
+      <label class="campo-pagamento"><span>🔢 Quantidade</span><input id="mercado-quick-quantidade" type="number" min="0.01" step="0.01" value="1" inputmode="decimal"></label>
+      <label class="campo-pagamento"><span>📦 Unidade</span><select id="mercado-quick-unidade">${['un','kg','g','L','ml','pct','cx'].map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label>
+      <label class="campo-pagamento mercado-quick-preco"><span>💰 Preço por unidade</span><input id="mercado-quick-preco" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"><small id="mercado-quick-total-item" class="ajuda-campo">Total do item: R$ 0,00</small></label>
+      <label class="mercado-quick-comprado"><input id="mercado-quick-comprado" type="checkbox"><span>Já comprei</span></label>
+      <label class="campo-pagamento mercado-quick-observacao"><span>💬 Observação</span><input id="mercado-quick-observacao" type="text" maxlength="250" placeholder="Marca, tamanho, preferência..."></label>
+      <button id="btn-mercado-quick-add" type="submit" class="botao-salvar-pagamento mercado-quick-botao">＋ Adicionar</button>
+    </div>
+  </form>`:''}
+
   <div class="painel mercado-acoes-principais">
     <div class="barra-mercado-superior">
-      ${!finalizada?`<button id="btn-novo-item-mercado" type="button" class="botao-nova-despesa">＋ Item</button><button id="btn-finalizar-compra-mercado" type="button" class="botao-salvar-pagamento">🧾 Finalizar compra</button>`:''}
+      ${!finalizada?`<button id="btn-finalizar-compra-mercado" type="button" class="botao-salvar-pagamento">🧾 Finalizar compra</button>`:''}
       <button id="btn-exportar-lista-mercado" type="button" class="botao-exportar-mercado">🖼️ Salvar lista</button>
       <button id="btn-historico-mercado" type="button" class="botao-exportar-mercado">📜 Histórico</button>
     </div>
-    <div class="ajuda-campo">${finalizada?'Esta lista já foi finalizada. Os itens, preços e a compra registrada ficam disponíveis para consulta.':'Em casa, monte a lista sem preços. No mercado, informe o preço real e marque o que foi comprado.'}</div>
+    <div class="ajuda-campo" id="mercado-contador-itens">${resumo.base.length} ${resumo.base.length===1?'item':'itens'} • ${resumo.comprados.length} comprado${resumo.comprados.length===1?'':'s'}</div>
     ${avisoPreco}
     <div class="busca-mercado-wrap"><span>🔎</span><input id="busca-mercado" type="search" value="${escAttr(busca)}" placeholder="Buscar produto..." autocomplete="off"></div>
     <div class="barra-acoes barra-acoes-mercado">${categorias.map(cat=>`<button type="button" class="chip ${cat===filtro?'ativo':''}" data-filtro-mercado="${escAttr(cat)}">${esc(cat==='LIMPEZA/HIGIENE'?'Limpeza/Higiene':cat.charAt(0)+cat.slice(1).toLowerCase())}</button>`).join('')}</div>
   </div>
-  <div class="painel"><div class="painel-titulo"><h3>📋 ${tituloItens}</h3><span>${visiveis.length}${pendentes.length?' • '+pendentes.length+' pendentes':''}</span></div><div class="lista-modulo lista-mercado-v21">${visiveis.length?visiveis.map(itemMercadoV21).join(''):`<div class="vazio">${textoVazio}</div>`}</div></div>`;
+
+  <div class="painel"><div class="painel-titulo"><h3>📋 ${tituloItens}</h3><span>${visiveis.length}${resumo.pendentes.length&&!finalizada?' • '+resumo.pendentes.length+' pendentes':''}</span></div><div class="lista-modulo lista-mercado-v21">${visiveis.length?visiveis.map(itemMercadoV27).join(''):`<div class="vazio">${textoVazio}</div>`}</div></div>`;
 
   $('btn-voltar-listas-mercado').onclick=()=>renderMercado(c);
   $('btn-historico-mercado').onclick=()=>renderHistoricoMercado(c);
   $('btn-exportar-lista-mercado').onclick=()=>abrirExportacaoMercado(itens,lista.nome);
-  if($('btn-novo-item-mercado'))$('btn-novo-item-mercado').onclick=()=>renderNovoItemMercado(c,lista);
   if($('btn-finalizar-compra-mercado'))$('btn-finalizar-compra-mercado').onclick=()=>renderFinalizarCompraMercado(c,lista,itens);
 
+  if(!finalizada){
+    const form=$('form-mercado-quick-add');
+    const atualizarTotalRapido=()=>{
+      const qtd=Number($('mercado-quick-quantidade')?.value||0);
+      const preco=Number(String($('mercado-quick-preco')?.value||'').replace(',','.')||0);
+      const el=$('mercado-quick-total-item');
+      if(el)el.textContent=`Total do item: ${moeda((Number.isFinite(qtd)?qtd:0)*(Number.isFinite(preco)?preco:0))}`;
+    };
+    $('mercado-quick-quantidade').addEventListener('input',atualizarTotalRapido);
+    $('mercado-quick-preco').addEventListener('input',atualizarTotalRapido);
+    form.onsubmit=async e=>{
+      e.preventDefault();
+      const btn=$('btn-mercado-quick-add');
+      const produto=$('mercado-quick-produto').value.trim();
+      const quantidade=Number($('mercado-quick-quantidade').value||1);
+      const unidade=$('mercado-quick-unidade').value;
+      const rawPreco=String($('mercado-quick-preco').value||'').trim().replace(',','.');
+      const valorUnitario=rawPreco===''?0:Number(rawPreco);
+      const comprado=$('mercado-quick-comprado').checked;
+      if(!produto){$('mercado-quick-produto').focus();return;}
+      if(!Number.isFinite(quantidade)||quantidade<=0){toast('Informe uma quantidade válida.');return;}
+      if(!Number.isFinite(valorUnitario)||valorUnitario<0){toast('Informe um preço válido.');return;}
+      btn.disabled=true;btn.textContent='Adicionando...';
+      try{
+        const dados={listaId:lista.id,referencia:lista.referencia||referenciaAtual(),categoria:$('mercado-quick-categoria').value,produto,quantidade,unidade,valorUnitario,observacao:$('mercado-quick-observacao').value.trim(),comprado:comprado?'SIM':'NÃO'};
+        const r=await chamarApi({action:'inserirItemMercado',token:sessao.token,dados});
+        assertOk(r);
+        itens.push({id:r.id,referencia:dados.referencia,categoria:dados.categoria,produto:dados.produto,quantidade:dados.quantidade,unidade:dados.unidade,naLista:'SIM',comprado:dados.comprado,valorUnitario:dados.valorUnitario,valorTotal:dados.quantidade*dados.valorUnitario,compraId:'',observacao:dados.observacao,listaId:lista.id});
+        toast(comprado?'Item adicionado e marcado como comprado! 🛒✅':'Item adicionado! 🛒');
+        renderListaMercado(c,lista,itens,filtro, busca);
+        setTimeout(()=>{$('mercado-quick-produto')?.focus();},30);
+      }catch(err){
+        toast(err.message||'Não foi possível adicionar o item.');
+        btn.disabled=false;btn.textContent='＋ Adicionar';
+      }
+    };
+  }
+
   let timer=null;
-  $('busca-mercado').addEventListener('input',e=>{const v=e.target.value;clearTimeout(timer);timer=setTimeout(()=>renderListaMercado(c,lista,itens,filtro,v),160);});
+  $('busca-mercado').addEventListener('input',e=>{const v=e.target.value;clearTimeout(timer);timer=setTimeout(()=>renderListaMercado(c,lista,itens,filtro,v),120);});
   c.querySelectorAll('[data-filtro-mercado]').forEach(btn=>btn.addEventListener('click',()=>renderListaMercado(c,lista,itens,btn.dataset.filtroMercado,$('busca-mercado').value)));
 
-  c.querySelectorAll('[data-mercado-preco]').forEach(input=>input.addEventListener('change',async()=>{
-    const id=input.dataset.mercadoPreco;const raw=String(input.value||'').trim().replace(',','.');const valor=raw===''?0:Number(raw);
-    if(!Number.isFinite(valor)||valor<0){toast('Informe um preço válido.');return;} input.disabled=true;
-    try{const rr=await chamarApi({action:'atualizarItemMercado',token:sessao.token,id,dados:{valorUnitario:valor}});assertOk(rr);toast('Preço atualizado! 💰');await renderListaMercadoDetalhe(c,listaId,filtro,$('busca-mercado')?.value||'');}catch(e){toast(e.message||'Não foi possível salvar o preço.');input.disabled=false;}
-  }));
+  c.querySelectorAll('[data-mercado-preco]').forEach(input=>{
+    input.addEventListener('input',()=>{
+      const item=itens.find(x=>String(x.id)===String(input.dataset.mercadoPreco));
+      if(!item)return;
+      const raw=String(input.value||'').trim().replace(',','.');
+      const valor=raw===''?0:Number(raw);
+      if(!Number.isFinite(valor)||valor<0)return;
+      item.valorUnitario=valor;
+      item.valorTotal=Number(item.quantidade||0)*valor;
+      const totalEl=input.closest('.mercado-preco-linha')?.querySelector('.total-item-mercado');
+      if(totalEl)totalEl.textContent=item.valorTotal>0?'Total: '+moeda(item.valorTotal):'Total: —';
+      atualizarResumoMercadoDOM(itens,finalizada);
+    });
+    input.addEventListener('change',async()=>{
+      const item=itens.find(x=>String(x.id)===String(input.dataset.mercadoPreco));
+      if(!item)return;
+      const raw=String(input.value||'').trim().replace(',','.');
+      const valor=raw===''?0:Number(raw);
+      if(!Number.isFinite(valor)||valor<0){toast('Informe um preço válido.');return;}
+      const anterior=Number(item.valorUnitario||0);
+      input.disabled=true;
+      try{
+        const rr=await chamarApi({action:'atualizarItemMercado',token:sessao.token,id:item.id,dados:{valorUnitario:valor}});
+        assertOk(rr);
+        item.valorUnitario=valor;item.valorTotal=Number(item.quantidade||0)*valor;
+        atualizarResumoMercadoDOM(itens,finalizada);
+      }catch(e){
+        item.valorUnitario=anterior;item.valorTotal=Number(item.quantidade||0)*anterior;input.value=anterior>0?anterior.toFixed(2):'';toast(e.message||'Não foi possível salvar o preço.');
+        atualizarResumoMercadoDOM(itens,finalizada);
+      }finally{input.disabled=false;}
+    });
+  });
 
   c.querySelectorAll('[data-mercado-id]').forEach(btn=>btn.addEventListener('click',async()=>{
-    btn.disabled=true;try{const novo=btn.dataset.ok!=='SIM';const rr=await chamarApi({action:'atualizarItemMercado',token:sessao.token,id:btn.dataset.mercadoId,dados:{comprado:novo?'SIM':'NÃO'}});assertOk(rr);toast(novo?'Item marcado como comprado! 🛒':'Item voltou para a lista.');await renderListaMercadoDetalhe(c,listaId,filtro,$('busca-mercado')?.value||'');}catch(e){toast(e.message||'Não foi possível atualizar o item.');btn.disabled=false;}
+    const item=itens.find(x=>String(x.id)===String(btn.dataset.mercadoId));
+    if(!item)return;
+    btn.disabled=true;
+    try{
+      const novo=btn.dataset.ok!=='SIM';
+      const rr=await chamarApi({action:'atualizarItemMercado',token:sessao.token,id:item.id,dados:{comprado:novo?'SIM':'NÃO'}});
+      assertOk(rr);
+      item.comprado=novo?'SIM':'NÃO';
+      toast(novo?'Item marcado como comprado! 🛒':'Item voltou para a lista.');
+      renderListaMercado(c,lista,itens,filtro,$('busca-mercado')?.value||'');
+    }catch(e){toast(e.message||'Não foi possível atualizar o item.');btn.disabled=false;}
   }));
 
   c.querySelectorAll('[data-excluir-mercado-id]').forEach(btn=>btn.addEventListener('click',async()=>{
-    const id=btn.dataset.excluirMercadoId;const produto=btn.dataset.produto||'este item';if(!confirm(`Excluir "${produto}" da lista?\n\nO item não será apagado do histórico se já tiver sido comprado.`))return;btn.disabled=true;
-    try{const rr=await chamarApi({action:'excluirItemMercado',token:sessao.token,id});assertOk(rr);toast('Item excluído da lista. 🗑️');await renderListaMercadoDetalhe(c,listaId,filtro,$('busca-mercado')?.value||'');}catch(e){toast(e.message||'Não foi possível excluir o item.');btn.disabled=false;}
+    const id=btn.dataset.excluirMercadoId;const produto=btn.dataset.produto||'este item';
+    if(!confirm(`Excluir "${produto}" da lista?\n\nO item não será apagado do histórico se já tiver sido comprado.`))return;
+    btn.disabled=true;
+    try{
+      const rr=await chamarApi({action:'excluirItemMercado',token:sessao.token,id});assertOk(rr);
+      const idx=itens.findIndex(x=>String(x.id)===String(id));
+      if(idx>=0)itens[idx].naLista='NÃO';
+      toast('Item excluído da lista. 🗑️');
+      renderListaMercado(c,lista,itens,filtro,$('busca-mercado')?.value||'');
+    }catch(e){toast(e.message||'Não foi possível excluir o item.');btn.disabled=false;}
   }));
 }
 
-function itemMercadoV21(x){
-  const ok=String(x.comprado||'NÃO').toUpperCase()==='SIM';const qtd=Number(x.quantidade||0);const qtdTxt=qtd?`${qtd} ${x.unidade||'un'}`:'';const valorUnitario=Number(x.valorUnitario||0);const total=Number(x.valorTotal||0);
-  return `<div class="item-lista item-mercado-v21 ${ok?'item-mercado-comprado':''}"><div class="item-mercado-info"><div class="descricao">${esc(x.produto||'Produto')}</div><div class="meta">${esc(x.categoria||'')}${qtdTxt?' • '+esc(qtdTxt):''}</div>${x.observacao?`<div class="meta">💬 ${esc(x.observacao)}</div>`:''}<div class="mercado-preco-area"><label class="mercado-preco-label">Preço por unidade</label><div class="mercado-preco-linha"><div class="campo-preco-mercado"><span>R$</span><input type="number" min="0" step="0.01" inputmode="decimal" value="${valorUnitario>0?valorUnitario.toFixed(2):''}" placeholder="0,00" data-mercado-preco="${escAttr(x.id)}" aria-label="Preço de ${escAttr(x.produto||'produto')}" ${String(x.compraId||'')?'disabled':''}></div><span class="total-item-mercado">${total>0?'Total: '+moeda(total):'Total: —'}</span></div></div><div class="mercado-item-acoes"><button type="button" class="botao-marcar-mercado ${ok?'ok':''}" data-mercado-id="${escAttr(x.id)}" data-ok="${ok?'SIM':'NÃO'}" ${String(x.compraId||'')?'disabled':''}><span class="icone-check-mercado">${ok?'✓':'○'}</span><span>${ok?'Comprado — tocar para desfazer':'Marcar como comprado'}</span></button>${!String(x.compraId||'')?`<button type="button" class="botao-excluir-mercado" data-excluir-mercado-id="${escAttr(x.id)}" data-produto="${escAttr(x.produto||'item')}">🗑️ Excluir</button>`:''}</div></div></div>`;
+function itemMercadoV27(x){
+  const ok=String(x.comprado||'NÃO').toUpperCase()==='SIM'||String(x.compraId||'').trim()!=='';
+  const qtd=Number(x.quantidade||0);
+  const qtdTxt=qtd?`${qtd} ${x.unidade||'un'}`:'';
+  const valorUnitario=Number(x.valorUnitario||0);
+  const total=Number(x.valorTotal||0);
+  const finalizado=String(x.compraId||'').trim()!=='';
+  return `<div class="item-lista item-mercado-v21 ${ok?'item-mercado-comprado':''}">
+    <div class="item-mercado-info">
+      <div class="descricao">${esc(x.produto||'Produto')}</div>
+      <div class="meta">${esc(x.categoria||'')}${qtdTxt?' • '+esc(qtdTxt):''}</div>
+      ${x.observacao?`<div class="meta">💬 ${esc(x.observacao)}</div>`:''}
+      <div class="mercado-preco-area">
+        <label class="mercado-preco-label">Preço por unidade</label>
+        <div class="mercado-preco-linha">
+          <div class="campo-preco-mercado"><span>R$</span><input type="number" min="0" step="0.01" inputmode="decimal" value="${valorUnitario>0?valorUnitario.toFixed(2):''}" placeholder="0,00" data-mercado-preco="${escAttr(x.id)}" aria-label="Preço de ${escAttr(x.produto||'produto')}" ${finalizado?'disabled':''}></div>
+          <span class="total-item-mercado">${total>0?'Total: '+moeda(total):'Total: —'}</span>
+        </div>
+      </div>
+      <div class="mercado-item-acoes">
+        <button type="button" class="botao-marcar-mercado ${ok?'ok':''}" data-mercado-id="${escAttr(x.id)}" data-ok="${ok?'SIM':'NÃO'}" ${finalizado?'disabled':''}><span class="icone-check-mercado">${ok?'✓':'○'}</span><span>${ok?'Comprado — tocar para desfazer':'Marcar como comprado'}</span></button>
+        ${!finalizado?`<button type="button" class="botao-excluir-mercado" data-excluir-mercado-id="${escAttr(x.id)}" data-produto="${escAttr(x.produto||'item')}">🗑️ Excluir</button>`:''}
+      </div>
+    </div>
+  </div>`;
 }
 
-async function renderNovoItemMercado(c,lista){
-  subtelaModulo='novo-item-mercado';rolarModuloTopo();
-  const categorias=['ESSENCIAL','ADICIONAIS','MISTURA','LIMPEZA/HIGIENE'];const unidades=['un','kg','g','L','ml','pct','cx'];
-  c.innerHTML=cabecalho('➕','Adicionar item',`Lista: ${esc(lista.nome||'')}`)+`<form id="form-novo-item-mercado" class="form-pagamento"><label class="campo-pagamento"><span>📝 Produto *</span><input id="mercado-produto" type="text" maxlength="120" placeholder="Ex.: Arroz 5 kg" required></label><label class="campo-pagamento"><span>🏷️ Categoria</span><select id="mercado-categoria">${categorias.map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label><div class="grid-dois-mercado"><label class="campo-pagamento"><span>🔢 Quantidade</span><input id="mercado-quantidade" type="number" min="0.01" step="0.01" value="1" inputmode="decimal"></label><label class="campo-pagamento"><span>📦 Unidade</span><select id="mercado-unidade">${unidades.map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label></div><label class="campo-pagamento"><span>💬 Observação</span><textarea id="mercado-observacao" maxlength="250" rows="3" placeholder="Marca, tamanho, sabor, preferência..."></textarea></label><div class="aviso-preco-mercado">💡 O preço fica para depois. No mercado, informe o valor real e marque o que foi comprado.</div><div class="cal-form-acoes"><button id="btn-cancelar-item-mercado" type="button" class="botao-cancelar-pagamento">Cancelar</button><button id="btn-salvar-item-mercado" type="submit" class="botao-salvar-pagamento">🛒 Adicionar à lista</button></div></form>`;
-  $('btn-cancelar-item-mercado').onclick=()=>renderListaMercadoDetalhe(c,lista.id);
-  $('form-novo-item-mercado').onsubmit=async e=>{e.preventDefault();const btn=$('btn-salvar-item-mercado');btn.disabled=true;btn.textContent='Salvando...';try{const r=await chamarApi({action:'inserirItemMercado',token:sessao.token,dados:{listaId:lista.id,referencia:lista.referencia||referenciaAtual(),categoria:$('mercado-categoria').value,produto:$('mercado-produto').value.trim(),quantidade:Number($('mercado-quantidade').value||1),unidade:$('mercado-unidade').value,valorUnitario:0,observacao:$('mercado-observacao').value.trim()}});assertOk(r);toast('Item adicionado à lista! 🛒');await renderListaMercadoDetalhe(c,lista.id);}catch(err){toast(err.message||'Não foi possível adicionar o item.');btn.disabled=false;btn.textContent='🛒 Adicionar à lista';}};
-}
 
 async function renderFinalizarCompraMercado(c,lista,itens){
   subtelaModulo='finalizar-compra-mercado';rolarModuloTopo();
@@ -1017,7 +1168,7 @@ async function renderFinalizarCompraMercado(c,lista,itens){
   const totalCalculado=selecionados.reduce((t,x)=>t+Number(x.valorTotal||0),0);const formas=['PIX','CRÉDITO','DÉBITO','DINHEIRO'];
   c.innerHTML=cabecalho('🧾','Finalizar compra',`Lista: ${esc(lista.nome||'')}`)+`<form id="form-finalizar-compra-mercado" class="form-pagamento"><div class="painel"><div class="painel-titulo"><h3>${selecionados.length} itens comprados</h3><strong class="laranja">${moeda(totalCalculado)}</strong></div><p class="ajuda-campo">Total calculado pelos preços informados. O valor do caixa pode ser diferente.</p><div class="lista-mini-mercado">${selecionados.map(x=>`<div>🛒 ${esc(x.produto)} <span>${moeda(x.valorTotal)}</span></div>`).join('')}</div></div><label class="campo-pagamento"><span>🏪 Onde comprou?</span><input id="compra-mercado-nome" type="text" maxlength="120" placeholder="Ex.: Guanabara"></label><label class="campo-pagamento"><span>💰 Total pago no caixa *</span><input id="compra-mercado-valor" type="number" min="0" step="0.01" inputmode="decimal" value="${totalCalculado.toFixed(2)}" required></label><label class="campo-pagamento"><span>💳 Forma de pagamento</span><select id="compra-mercado-forma">${formas.map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label><label class="campo-pagamento"><span>📎 Comprovante</span><input id="compra-mercado-arquivo" type="file" accept="image/jpeg,image/png,application/pdf"><small class="ajuda-campo">JPG, PNG ou PDF até 10 MB.</small></label><label class="campo-pagamento"><span>💬 Observação</span><textarea id="compra-mercado-observacao" rows="3" maxlength="300" placeholder="Ex.: faltou um produto ou houve substituição."></textarea></label><div class="cal-form-acoes"><button id="btn-cancelar-finalizar-compra" type="button" class="botao-cancelar-pagamento">Cancelar</button><button id="btn-finalizar-compra" type="submit" class="botao-salvar-pagamento">✅ Registrar compra</button></div></form>`;
   $('btn-cancelar-finalizar-compra').onclick=()=>renderListaMercadoDetalhe(c,lista.id);
-  $('form-finalizar-compra-mercado').onsubmit=async e=>{e.preventDefault();const btn=$('btn-finalizar-compra');btn.disabled=true;btn.textContent='Registrando...';try{const arquivo=$('compra-mercado-arquivo').files?.[0];const payload={action:'registrarCompra',token:sessao.token,dados:{data:dataInputHoje(),referencia:lista.referencia||referenciaAtual(),listaId:lista.id,mercado:$('compra-mercado-nome').value.trim(),tipoCompra:'COMPRA',valorTotal:Number($('compra-mercado-valor').value||0),formaPagamento:$('compra-mercado-forma').value,observacao:$('compra-mercado-observacao').value.trim(),itemIds:selecionados.map(x=>x.id)}};if(arquivo)payload.arquivo=await arquivoParaPayload(arquivo);const r=await chamarApi(payload);assertOk(r);toast(r.listaFinalizada?'Compra registrada e lista finalizada! 🧾✅':'Compra registrada! Os itens não comprados continuam na lista. 🧾✅');await renderListaMercadoDetalhe(c,lista.id);}catch(err){toast(err.message||'Não foi possível registrar a compra.');btn.disabled=false;btn.textContent='✅ Registrar compra';}};
+  $('form-finalizar-compra-mercado').onsubmit=async e=>{e.preventDefault();const btn=$('btn-finalizar-compra');btn.disabled=true;btn.textContent='Registrando...';try{const arquivo=$('compra-mercado-arquivo').files?.[0];const payload={action:'registrarCompra',token:sessao.token,dados:{data:dataInputHoje(),referencia:lista.referencia||referenciaAtual(),listaId:lista.id,mercado:$('compra-mercado-nome').value.trim(),tipoCompra:'COMPRA',valorTotal:Number($('compra-mercado-valor').value||0),formaPagamento:$('compra-mercado-forma').value,observacao:$('compra-mercado-observacao').value.trim(),itemIds:selecionados.map(x=>x.id)}};if(arquivo)payload.arquivo=await arquivoParaPayload(arquivo);const r=await chamarApi(payload);assertOk(r);toast(r.financeiroCriado?'Compra registrada e despesa lançada no Financeiro! 💰🧾':(r.listaFinalizada?'Compra registrada e lista finalizada! 🧾✅':'Compra registrada! Os itens não comprados continuam na lista. 🧾✅'));await renderListaMercadoDetalhe(c,lista.id);}catch(err){toast(err.message||'Não foi possível registrar a compra.');btn.disabled=false;btn.textContent='✅ Registrar compra';}};
 }
 
 async function renderHistoricoMercado(c, filtroInicial='TODAS', buscaInicial=''){

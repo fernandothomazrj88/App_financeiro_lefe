@@ -1542,3 +1542,130 @@ body.modal-aberto{overflow:hidden}
 .mercado-finalizadas-toggle-direita>span:last-child{font-size:25px;line-height:1;color:var(--laranja)}
 .mercado-finalizadas-conteudo{border-top:1px solid #333;margin-top:8px;padding-top:10px}
 .mercado-finalizadas-conteudo[hidden]{display:none}
+
+/* =========================================================
+   MERCADO V27 — COMPRA RÁPIDA + TOTAL EM TEMPO REAL
+========================================================= */
+.mercado-total-card{
+  margin:10px 0;
+  padding:14px;
+  border:1px solid #5a3a20;
+  border-radius:16px;
+  background:linear-gradient(145deg,#17120e,#0f0f0f);
+  display:grid;
+  grid-template-columns:minmax(0,1.25fr) minmax(210px,.9fr);
+  gap:12px;
+  box-shadow:0 8px 28px rgba(0,0,0,.22);
+}
+.mercado-total-principal{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+.mercado-total-principal small,
+.mercado-total-detalhes small{
+  color:#aaa;
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+.mercado-total-principal strong{
+  display:block;
+  color:var(--laranja);
+  font-size:30px;
+  line-height:1.05;
+  margin:4px 0 5px;
+}
+.mercado-total-principal span{
+  color:#bbb;
+  font-size:11px;
+}
+.mercado-total-principal span.ok{color:#7dffae}
+.mercado-total-detalhes{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.mercado-total-detalhes>div{
+  border:1px solid #333;
+  border-radius:11px;
+  background:#111;
+  padding:10px;
+  min-width:0;
+}
+.mercado-total-detalhes strong{
+  display:block;
+  margin-top:4px;
+  color:#fff;
+  font-size:16px;
+  white-space:nowrap;
+}
+
+.mercado-quick-add{
+  padding:12px;
+  border:1px solid #3d3d3d;
+  background:#121212;
+}
+.mercado-quick-titulo{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:10px;
+  margin-bottom:10px;
+}
+.mercado-quick-titulo strong{display:block;font-size:16px}
+.mercado-quick-titulo small{display:block;color:#999;font-size:11px;margin-top:3px}
+.mercado-quick-titulo>span{
+  flex:0 0 auto;
+  border:1px solid #5a3a20;
+  color:var(--laranja);
+  border-radius:999px;
+  padding:4px 8px;
+  font-size:10px;
+  font-weight:800;
+  text-transform:uppercase;
+}
+.mercado-quick-grid{
+  display:grid;
+  grid-template-columns:minmax(0,2fr) minmax(125px,1fr) minmax(85px,.65fr) minmax(85px,.65fr) minmax(125px,1fr);
+  gap:9px;
+  align-items:end;
+}
+.mercado-quick-produto{grid-column:span 2}
+.mercado-quick-preco input{font-weight:800}
+.mercado-quick-observacao{grid-column:1 / span 3}
+.mercado-quick-comprado{
+  min-height:45px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:10px 12px;
+  border:1px solid #3d3d3d;
+  border-radius:10px;
+  background:#0d0d0d;
+  color:#ddd;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+}
+.mercado-quick-comprado input{width:18px;height:18px;accent-color:var(--laranja)}
+.mercado-quick-botao{width:100%;min-height:45px;margin:0}
+
+@media(max-width:760px){
+  .mercado-quick-grid{grid-template-columns:1fr 1fr}
+  .mercado-quick-produto{grid-column:1 / -1}
+  .mercado-quick-observacao{grid-column:1 / -1}
+  .mercado-quick-botao{grid-column:1 / -1}
+}
+@media(max-width:520px){
+  .mercado-total-card{grid-template-columns:1fr;padding:12px}
+  .mercado-total-principal strong{font-size:28px}
+  .mercado-total-detalhes{grid-template-columns:1fr 1fr}
+  .mercado-quick-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:380px){
+  .mercado-quick-grid{grid-template-columns:1fr}
+  .mercado-quick-produto,.mercado-quick-observacao,.mercado-quick-botao{grid-column:auto}
+}
