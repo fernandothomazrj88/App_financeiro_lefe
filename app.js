@@ -8,7 +8,7 @@ let sessao={
 let moduloAtual=null;
 let subtelaModulo=null;
 
-const LEFE_APP_VERSION='27.0';
+const LEFE_APP_VERSION='27.0.1';
 
 // Cache leve em memória para o módulo Casa.
 // Evita novas leituras da API ao trocar de aba rapidamente.
@@ -63,9 +63,9 @@ document.addEventListener('DOMContentLoaded',()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('./service-worker.js?v=27.0');
+      const reg=await navigator.serviceWorker.register('./service-worker.js?v=27.0.1');
       await reg.update();
-      console.log('LeFe Home PWA v26.8 ativo.',reg.scope);
+      console.log('LeFe Home PWA v27.0.1 ativo.',reg.scope);
     }catch(err){
       console.warn('Falha ao registrar PWA:',err);
     }
@@ -1000,9 +1000,9 @@ function renderListaMercado(c,lista,itens,filtro='TODAS',busca=''){
     <div class="mercado-quick-titulo"><div><strong>⚡ Adicionar item</strong><small>Coloque o preço agora, se já estiver no mercado.</small></div><span>Rápido</span></div>
     <div class="mercado-quick-grid">
       <label class="campo-pagamento mercado-quick-produto"><span>📝 Produto *</span><input id="mercado-quick-produto" type="text" maxlength="120" placeholder="Ex.: Arroz 5 kg" autocomplete="off" required></label>
-      <label class="campo-pagamento"><span>🏷️ Categoria</span><select id="mercado-quick-categoria">${['ESSENCIAL','ADICIONAIS','MISTURA','LIMPEZA/HIGIENE'].map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label>
-      <label class="campo-pagamento"><span>🔢 Quantidade</span><input id="mercado-quick-quantidade" type="number" min="0.01" step="0.01" value="1" inputmode="decimal"></label>
-      <label class="campo-pagamento"><span>📦 Unidade</span><select id="mercado-quick-unidade">${['un','kg','g','L','ml','pct','cx'].map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label>
+      <label class="campo-pagamento mercado-quick-categoria"><span>🏷️ Categoria</span><select id="mercado-quick-categoria">${['ESSENCIAL','ADICIONAIS','MISTURA','LIMPEZA/HIGIENE'].map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label>
+      <label class="campo-pagamento mercado-quick-quantidade"><span>🔢 Quantidade</span><input id="mercado-quick-quantidade" type="number" min="0.01" step="0.01" value="1" inputmode="decimal"></label>
+      <label class="campo-pagamento mercado-quick-unidade"><span>📦 Unidade</span><select id="mercado-quick-unidade">${['un','kg','g','L','ml','pct','cx'].map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label>
       <label class="campo-pagamento mercado-quick-preco"><span>💰 Preço por unidade</span><input id="mercado-quick-preco" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"><small id="mercado-quick-total-item" class="ajuda-campo">Total do item: R$ 0,00</small></label>
       <label class="mercado-quick-comprado"><input id="mercado-quick-comprado" type="checkbox"><span>Já comprei</span></label>
       <label class="campo-pagamento mercado-quick-observacao"><span>💬 Observação</span><input id="mercado-quick-observacao" type="text" maxlength="250" placeholder="Marca, tamanho, preferência..."></label>
